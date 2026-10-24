@@ -23,6 +23,7 @@ table.det .note{font-size:.8rem;color:var(--ink-2);max-width:340px}
 table.det .note li{margin:0 0 2px}
 table.det ul{margin:0;padding-left:16px}
 table.periodi{font-size:.8rem;margin:6px 0 4px}
+.u{font-family:var(--f-body);font-size:.75em;color:var(--ink-2)}
 .btnlink{background:none;border:0;color:var(--navy-2);text-decoration:underline;cursor:pointer;font:inherit;padding:0}
 .avvisi{margin:0;padding-left:18px}
 .avvisi li{margin-bottom:4px}

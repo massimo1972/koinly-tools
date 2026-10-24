@@ -19,6 +19,11 @@
     return (neg ? "-" : "") + i + (f ? "," + f : "");
   }
   function it(g) { return D.it(g); }
+  function QU(s, r) { var q = Q(s); return q === "–" ? q : q + ' <span class="u">' + esc(String(r.nome).split(";")[0]) + "</span>"; }
+  var LEGENDA = '<p class="metodi"><b>Come leggere le quantità.</b> Sono unità della cripto (per esempio 37.532,88 XRP), non euro, sommate su tutti i wallet e gli exchange. ' +
+    '<b>Quantità 1/1</b>: unità detenute all\'inizio del 1° gennaio, dal report Koinly di inizio anno. <b>Quantità 31/12</b>: unità detenute alla fine del 31 dicembre, ricostruite dalle transazioni e riscontrate con il report di fine anno. ' +
+    '<b>Quantità del periodo</b>: unità detenute in modo costante dalla data di inizio a quella di fine detenzione del periodo; per un periodo che si chiude con una vendita è la quantità posseduta prima della vendita. ' +
+    '<b>Quantità media</b>: media delle quantità dei periodi ponderata per i giorni. I valori in euro sono quantità × prezzo del giorno di inizio o di fine detenzione.</p>';
 
   /* ---------- lettura dei file ---------- */
   async function testoPdf(f) { return await window.LumesPdf.pdfToPages(window.pdfjsLib, new Uint8Array(await f.arrayBuffer())); }
@@ -125,15 +130,15 @@
       var aperto = S.aperti[r.chiave];
       var tr = '<tr class="' + (r.incluso ? "" : "escl") + '"><td><input type="checkbox" data-incl="' + esc(r.chiave) + '"' + (r.incluso ? " checked" : "") + ' aria-label="Includi ' + esc(r.nome) + '"></td>' +
         "<td><b>" + esc(r.nome) + "</b></td>" +
-        "<td>" + it(r.primo) + "</td><td>" + it(r.ultimo) + '</td><td class="n">' + r.giorni + "</td>" +
+        "<td>" + it(r.primo) + "</td><td>" + it(r.ultimo) + '</td><td class="n">' + QU(r.iniziale, r) + '</td><td class="n">' + QU(r.finale, r) + '</td><td class="n">' + r.giorni + "</td>" +
         '<td class="n"><button type="button" class="btnlink" data-apri="' + esc(r.chiave) + '">' + r.periodi.length + (aperto ? " ▴" : " ▾") + "</button></td>" +
         '<td class="n">' + E(r.valoreIniziale) + "</td>" +
         '<td class="n"><input class="num" type="number" step="any" data-val="' + esc(r.chiave) + '" value="' + (S.valori[r.chiave] != null ? esc(S.valori[r.chiave]) : r.valoreFinale != null ? (Math.round(r.valoreFinale * 100) / 100) : "") + '" title="Valore finale dell\'ultimo periodo (fonte: ' + esc(r.fonteFinale || "mancante") + ')"></td>' +
         '<td class="n"><b>' + E(r.ivaca) + '</b></td><td class="n">' + E(r.valoreMedio) + "</td>" +
         '<td class="note">' + (r.note.length ? "<ul>" + r.note.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>" : "") + "</td></tr>";
-      if (aperto) tr += '<tr><td></td><td colspan="10"><table class="det periodi"><thead><tr><th>Inizio detenzione</th><th>Fine detenzione</th><th class="n">Giorni</th><th class="n">Quantità</th><th class="n">Valore iniziale</th><th class="n">Valore finale</th><th class="n">IVACA</th></tr></thead><tbody>' +
+      if (aperto) tr += '<tr><td></td><td colspan="12"><table class="det periodi"><thead><tr><th>Inizio detenzione</th><th>Fine detenzione</th><th class="n">Giorni</th><th class="n">Quantità</th><th class="n">Valore iniziale</th><th class="n">Valore finale</th><th class="n">IVACA</th></tr></thead><tbody>' +
         r.periodi.map(function (p) {
-          return "<tr><td>" + it(p.dal) + "</td><td>" + it(p.al) + '</td><td class="n">' + p.giorni + '</td><td class="n">' + Q(p.quantita) +
+          return "<tr><td>" + it(p.dal) + "</td><td>" + it(p.al) + '</td><td class="n">' + p.giorni + '</td><td class="n">' + QU(p.quantita, r) +
             '</td><td class="n">' + E(p.valoreIniziale) + fonte(p.fonteIniziale) + '</td><td class="n">' + E(p.valore) + fonte(p.fonteFinale) + '</td><td class="n">' + E(p.ivaca) + "</td></tr>";
         }).join("") + '</tbody></table><p class="small muted" style="margin:0">Valori al prezzo del giorno di inizio e di fine detenzione, dal controvalore in euro delle transazioni Koinly; dai report Koinly per i periodi che iniziano il 1/1 o finiscono il 31/12, se caricati. * prezzo stimato (ultimo noto) · ✎ inserito a mano.</p></td></tr>';
       return tr;
@@ -142,7 +147,7 @@
   function risultati() {
     var iv = ivaca, vere = iv.righe.filter(function (r) { return !r.spam; }), spam = iv.righe.filter(function (r) { return r.spam; });
     var t = iv.totali;
-    var testa = '<thead><tr><th></th><th>Cripto</th><th>Inizio detenzione</th><th>Fine detenzione</th><th class="n">Giorni</th><th class="n">Periodi (righi RW)</th><th class="n">Valore iniziale</th><th class="n">Valore finale €</th><th class="n">IVACA</th><th class="n">Valore medio detenuto</th><th>Note</th></tr></thead>';
+    var testa = '<thead><tr><th></th><th>Cripto</th><th>Inizio detenzione</th><th>Fine detenzione</th><th class="n">Quantità 1/1</th><th class="n">Quantità 31/12</th><th class="n">Giorni</th><th class="n">Periodi (righi RW)</th><th class="n">Valore iniziale</th><th class="n">Valore finale €</th><th class="n">IVACA</th><th class="n">Valore medio detenuto</th><th>Note</th></tr></thead>';
     return '<div class="stack" style="margin-top:14px">' +
       '<div class="cards"><div class="card"><div class="k">Cripto detenute nel ' + S.anno + '</div><div class="v">' + vere.length + '</div></div>' +
       '<div class="card"><div class="k">Periodi di detenzione (righi RW)</div><div class="v">' + t.righiRw.toLocaleString("it-IT") + "</div></div>" +
@@ -150,10 +155,10 @@
       "</div>" +
       '<p class="metodi">Ogni cambio di quantità apre un nuovo periodo di detenzione: un acquisto dal giorno stesso, una vendita dal giorno successivo (il giorno della vendita chiude il periodo precedente, valutato al prezzo di quel giorno). Per ogni periodo: <b>IVACA = valore finale × 0,20% × quota × giorni / 365</b> (Redditi PF, quadro RW col. 33). Valore iniziale e finale sono quelli di inizio e fine detenzione. ' +
       (iv.mancanti ? "<b>" + iv.mancanti + " cripto senza valore: il totale è incompleto.</b> " : "") + (t.ivaca <= I.PARAMETRI.sogliaVersamento ? "L'imposta non supera 12 €: non si versa." : "") + "</p>" +
-      '<div class="panel"><h3 style="margin-top:0">Riscontri</h3>' + avvisi() + "</div>" +
+      LEGENDA + '<div class="panel"><h3 style="margin-top:0">Riscontri</h3>' + avvisi() + "</div>" +
       '<div class="panel"><div class="toolbar noprint" style="margin-bottom:10px"><button type="button" class="btn" id="excel">Scarica Excel</button><button type="button" class="btn gold" id="stampa">Stampa / PDF</button></div>' +
       '<div class="scroll"><table class="det">' + testa + "<tbody>" + righeTabella(vere) +
-      '<tr class="tot"><td></td><td>Totale incluse</td><td colspan="6"></td><td class="n">' + E(t.ivaca) + '</td><td></td><td></td></tr>' +
+      '<tr class="tot"><td></td><td>Totale incluse</td><td colspan="8"></td><td class="n">' + E(t.ivaca) + '</td><td></td><td></td></tr>' +
       "</tbody></table></div></div>" +
       (spam.length ? '<div class="panel"><details' + (S.spamAperti ? " open" : "") + ' id="spam"><summary>Token sospetti esclusi (' + spam.length + ")</summary><div class=\"scroll\"><table class=\"det\">" + testa + "<tbody>" + righeTabella(spam) + "</tbody></table></div></details></div>" : "") +
       "</div>";
@@ -210,14 +215,14 @@
       "<tr><td>Saldi a inizio anno</td><td>" + esc(S.inizio.nome) + "</td></tr><tr><td>Saldi a fine anno</td><td>" + esc(S.fine.nome) + "</td></tr>" +
       "<tr><td>Fuso orario delle date</td><td>" + (calcolo.fuso === "UTC" ? "UTC" : "ora italiana") + "</td></tr><tr><td>Quota di possesso</td><td>" + Math.round(iv.quota * 10000) / 100 + "%</td></tr></table>" +
       "<h2>Criterio</h2><p>Per ogni cripto, sul totale di tutti i wallet, ogni cambio di quantità apre un nuovo periodo di detenzione: un acquisto dal giorno stesso; una vendita chiude il periodo nel giorno della vendita, con la quantità detenuta prima e il valore a quella data, e il residuo riparte dal giorno successivo. Valore iniziale e finale sono quelli di inizio e fine detenzione di ciascun periodo. IVACA = valore finale × 0,20% × quota × giorni / 365 (istruzioni Redditi PF, quadro RW col. 33).</p>" +
-      "<h2>Riscontri</h2>" + avvisi() +
+      LEGENDA + "<h2>Riscontri</h2>" + avvisi() +
       '<h2>Riepilogo</h2><table class="det"><thead><tr><th>Cripto</th><th>Inizio detenzione</th><th>Fine detenzione</th><th class="n">Giorni</th><th class="n">Periodi</th><th class="n">Quantità 1/1</th><th class="n">Quantità 31/12</th><th class="n">Valore medio</th><th class="n">IVACA</th></tr></thead><tbody>' +
-      righe.map(function (r) { return "<tr><td>" + esc(r.nome) + "</td><td>" + it(r.primo) + "</td><td>" + it(r.ultimo) + '</td><td class="n">' + r.giorni + '</td><td class="n">' + r.periodi.length + '</td><td class="n">' + Q(r.iniziale) + '</td><td class="n">' + Q(r.finale) + '</td><td class="n">' + E(r.valoreMedio) + '</td><td class="n">' + E(r.ivaca) + "</td></tr>"; }).join("") +
+      righe.map(function (r) { return "<tr><td>" + esc(r.nome) + "</td><td>" + it(r.primo) + "</td><td>" + it(r.ultimo) + '</td><td class="n">' + r.giorni + '</td><td class="n">' + r.periodi.length + '</td><td class="n">' + QU(r.iniziale, r) + '</td><td class="n">' + QU(r.finale, r) + '</td><td class="n">' + E(r.valoreMedio) + '</td><td class="n">' + E(r.ivaca) + "</td></tr>"; }).join("") +
       '<tr class="tot"><td>Totale</td><td colspan="7"></td><td class="n">' + E(iv.totali.ivaca) + "</td></tr></tbody></table>" +
       (iv.totali.ivaca <= I.PARAMETRI.sogliaVersamento ? "<p>L'imposta non supera 12 €: non si versa.</p>" : "") +
       righe.map(function (r) {
         return '<h2 class="cripto">' + esc(r.nome) + " — " + r.periodi.length + (r.periodi.length === 1 ? " periodo" : " periodi") + ", IVACA " + E(r.ivaca) + '</h2><table class="det"><thead><tr><th>Inizio detenzione</th><th>Fine detenzione</th><th class="n">Giorni</th><th class="n">Quantità</th><th class="n">Valore iniziale</th><th class="n">Valore finale</th><th class="n">IVACA</th></tr></thead><tbody>' +
-          r.periodi.map(function (p) { return "<tr><td>" + it(p.dal) + "</td><td>" + it(p.al) + '</td><td class="n">' + p.giorni + '</td><td class="n">' + Q(p.quantita) + '</td><td class="n">' + E(p.valoreIniziale) + fonte(p.fonteIniziale) + '</td><td class="n">' + E(p.valore) + fonte(p.fonteFinale) + '</td><td class="n">' + E(p.ivaca) + "</td></tr>"; }).join("") +
+          r.periodi.map(function (p) { return "<tr><td>" + it(p.dal) + "</td><td>" + it(p.al) + '</td><td class="n">' + p.giorni + '</td><td class="n">' + QU(p.quantita, r) + '</td><td class="n">' + E(p.valoreIniziale) + fonte(p.fonteIniziale) + '</td><td class="n">' + E(p.valore) + fonte(p.fonteFinale) + '</td><td class="n">' + E(p.ivaca) + "</td></tr>"; }).join("") +
           "</tbody></table>" + (r.note.length ? '<p class="nota">' + r.note.map(esc).join(" · ") + "</p>" : "");
       }).join("") +
       '<p class="nota">Valori ai prezzi Koinly: dal controvalore in euro delle transazioni e, per i periodi che iniziano il 1/1 o finiscono il 31/12, dai report dei saldi. * prezzo stimato con l\'ultimo noto · ✎ valore inserito a mano. Il calcolo somma tutti i wallet; la circolare 30/E chiede un rigo RW per portafoglio. Stima da verificare: non sostituisce il parere del professionista.</p>';
