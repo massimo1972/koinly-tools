@@ -15,11 +15,13 @@ t("2022, dichiarazione presentata, testo previgente: oltre il termine della dich
   assert.ok(!voce(r, /IVACA/)); // IVACA non dovuta prima del 2023, resta la sanzione RW
   assert.ok(r.note.some((x) => /non era dovuta/.test(x)));
 });
-t("2023, termine 31/10/2024 (dopo il 1/9/2024): nuovo testo, oltre il termine dell'anno della violazione → 1/7; franchigia 2.000 €", () => {
+t("2023, termine 31/10/2024 (dopo il 1/9/2024): nuovo testo, oltre il termine dell'anno della violazione → 1/7; plusvalenza intera se almeno 2.000 €", () => {
   const r = Z.calcolaAnno({ anno: 2023, stato: "presentata", valoreRw: 70000, ivaca: 140, plusvalenze: 5000, pagamento: PAG });
   assert.equal(r.regime, "nuovo"); assert.equal(r.frazione.lettera, "b-bis");
   near(voce(r, /RW/).sanzione, 70000 * 0.03 / 7);
-  near(voce(r, /RT/).imposta, 3000 * 0.26); near(voce(r, /RT/).sanzione, 780 * 0.5 / 7);
+  near(voce(r, /RT/).imposta, 5000 * 0.26); near(voce(r, /RT/).sanzione, 1300 * 0.5 / 7);
+  assert.ok(!voce(Z.calcolaAnno({ anno: 2023, stato: "presentata", valoreRw: 0, ivaca: 0, plusvalenze: 1999, pagamento: PAG }), /RT/));
+  near(voce(Z.calcolaAnno({ anno: 2024, stato: "presentata", valoreRw: 0, ivaca: 0, plusvalenze: 5000, pagamento: PAG }), /RT/).imposta, 3000 * 0.26); // 2024: solo l'eccedenza
   near(voce(r, /IVACA/).sanzione, 140 * 0.5 / 7);
 });
 t("2024: ravvedimento entro il termine della dichiarazione del 2025 (31/10/2026) → 1/8", () => {
@@ -40,7 +42,7 @@ t("Interessi legali giorno per giorno con il tasso di ciascun anno", () => {
 t("Dichiarazione omessa: niente ravvedimento, sanzioni minime e definizione a 1/3, con l'invito ad attendere la contestazione", () => {
   const r = Z.calcolaAnno({ anno: 2023, stato: "omessa", valoreRw: 70000, ivaca: 140, plusvalenze: 5000, pagamento: PAG });
   assert.equal(r.ravvedibile, false);
-  near(r.sanzionePiena, Math.max((140 + 780) * 1.2, 250) + 70000 * 0.03); near(r.sanzioneUnTerzo, r.sanzionePiena / 3);
+  near(r.sanzionePiena, Math.max((140 + 1300) * 1.2, 250) + 70000 * 0.03); near(r.sanzioneUnTerzo, r.sanzionePiena / 3);
   assert.ok(r.note.some((x) => /non è tecnicamente possibile/.test(x)) && r.note.some((x) => /contestata dall'Agenzia/.test(x)));
   const v = r.ravvedimentoValido, p = Z.calcolaAnno({ anno: 2023, stato: "presentata", valoreRw: 70000, ivaca: 140, plusvalenze: 5000, pagamento: PAG });
   assert.ok(v && v.ravvedibile); near(v.sanzioni, p.sanzioni); near(v.totale, p.totale);

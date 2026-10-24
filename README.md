@@ -38,6 +38,32 @@ Per ogni anno da ravvedere:
 
 Fonti in [docs/FONTI.md](docs/FONTI.md).
 
+## 3. Quadri RW, RT e F24
+
+Prospetti compilati secondo i modelli ministeriali, stampabili in PDF con l'intestazione dello studio:
+
+- **Quadro RW:** un rigo per periodo di detenzione, cinque righi per modulo. Colonne: col. 1 titolo, col. 3 codice 21, col. 5 quota, col. 6 criterio 1, col. 7 e 8 valori in euro, col. 10 giorni, col. 33 e 34 imposta. Rigo RW8 con il totale esatto arrotondato all'euro. Le cripto con molti periodi (soglia modificabile) vanno in un rigo unico con valore medio ponderato e giorni complessivi.
+- **Quadro RT:** sezione cripto-attività con i righi del modello dell'anno.
+
+  | Anno | Modello | Righi | Franchigia di 2.000 € |
+  |---|---|---|---|
+  | 2023 | Redditi PF 2024 | RT31-RT39 | plusvalenza intera se almeno 2.000 € |
+  | 2024 | Redditi PF 2025 | RT41, RT43-RT45, RT57, RT88-RT90 | solo l'eccedenza |
+  | 2025 | Redditi PF 2026 | RT41 col. 3-4 | nessuna |
+
+  Plusvalenza = corrispettivi − costi.
+- **F24, sezione Erario:**
+
+  | Codice | Uso | Fonte |
+  |---|---|---|
+  | 1727 | Imposta sulle cripto-attività, saldo (rateazione 0101) | Ris. 36/E/2023 e 10/E/2024 |
+  | 1715 | Imposta sostitutiva RT | Ris. 36/E/2023 |
+  | 8945 | Sanzione da ravvedimento | Ris. 12/E/2023; per l'IC per analogia |
+  | 1945 | Interessi da ravvedimento | Ris. 12/E/2023; per l'IC per analogia |
+  | 8911 | Sanzione RW e dichiarazione tardiva | |
+
+  Anno di riferimento = anno d'imposta. Gli anni con dichiarazione omessa non vanno in F24.
+
 ## File
 
 | File | Contenuto |
@@ -48,6 +74,7 @@ Fonti in [docs/FONTI.md](docs/FONTI.md).
 | `ivaca.js` | Valori dei periodi e imposta |
 | `sanzioni.js` | Sanzioni, frazioni di ravvedimento, interessi legali, scadenze per anno |
 | `studio.js` | Dati dello studio per la stampa |
+| `modelli.js` | Quadri RW e RT del modello Redditi PF e modello F24 |
 | `xlsx-mini.js` | Scrittura dei file Excel senza librerie |
 | `comune/` | Grafica, caratteri, pdf.js 3.11.174 e lettura dei PDF (da strumenti-lumes) |
 
@@ -56,6 +83,7 @@ Fonti in [docs/FONTI.md](docs/FONTI.md).
 ```bash
 node test/detenzione.test.js
 node test/sanzioni.test.js
+node test/modelli.test.js
 ```
 
 I dati delle prove sono inventati. I file reali dei clienti vanno solo nella cartella `campioni/`, esclusa da Git.

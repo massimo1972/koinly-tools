@@ -40,5 +40,83 @@
     return { anno: iv.anno, righi: righi, moduli: righi.length ? righi[righi.length - 1].modulo : 0, rw8: rw8 };
   }
 
-  return { quadroRW: quadroRW };
+  /* Quadro RT, sezione cripto-attività, secondo il modello dell'anno (istruzioni Redditi PF, fascicolo 2):
+     anno 2023 → Redditi PF 2024, sezione II-B, righi RT31-RT39 (plusvalenza intera se almeno 2.000 €);
+     anno 2024 → Redditi PF 2025, sezione V, righi RT41-RT45, RT57, RT88-RT90 (solo la parte oltre 2.000 €);
+     anno 2025 → Redditi PF 2026, stessi righi, cessioni 2025 in RT41 col. 3-4 senza franchigia. Aliquota 26%.
+     opz: { minusPrecedenti, eccedenzaPrecedente } */
+  function quadroRT(anno, corrispettivi, costi, opz) {
+    var o = opz || {}, c = r0(corrispettivi), k = r0(costi), diff = c - k, minus = r0(o.minusPrecedenti), ecc = r0(o.eccedenzaPrecedente);
+    var out = { anno: anno, righi: [], minusvalenzaDaRiportare: 0 };
+    var add = function (rigo, col, desc, v) { out.righi.push({ rigo: rigo, col: col, descrizione: desc, valore: v }); };
+    if (anno === 2023) {
+      out.modello = "Redditi PF 2024 · quadro RT, sezione II-B (cripto-attività)";
+      var plus23 = diff >= 2000 ? diff : 0, min23 = diff < -2000 ? -diff : 0;
+      add("RT31", "", "Totale dei corrispettivi", c);
+      add("RT32", "2", "Totale dei costi o valori di acquisto", k);
+      add("RT33", "1", "Minusvalenza (perdita oltre 2.000 €)", min23);
+      add("RT33", "2", "Plusvalenza (RT31 − RT32 col. 2, se almeno 2.000 €)", plus23);
+      var m23 = Math.min(minus, plus23);
+      add("RT34", "", "Eccedenza delle minusvalenze degli anni precedenti", m23);
+      add("RT35", "2", "Minusvalenze certificate dagli intermediari", 0);
+      var base23 = plus23 - m23, imp23 = r0(base23 * 0.26), e23 = Math.min(ecc, imp23);
+      add("RT36", "", "Differenza (RT33 col. 2 − RT34 − RT35 col. 2)", base23);
+      add("RT37", "", "Imposta sostitutiva 26%", imp23);
+      add("RT38", "", "Eccedenza d'imposta della dichiarazione precedente", e23);
+      add("RT39", "", "Imposta sostitutiva dovuta", imp23 - e23);
+      out.imposta = imp23 - e23; out.minusvalenzaDaRiportare = min23; out.rigoMinus = "RT94 col. 5";
+      return out;
+    }
+    if (anno === 2024 || anno === 2025) {
+      out.modello = (anno === 2024 ? "Redditi PF 2025" : "Redditi PF 2026") + " · quadro RT, sezione V (cripto-attività)";
+      var soglia = anno === 2024 ? 2000 : 0; // dal 2025 nessuna franchigia per le cessioni dell'anno
+      var plus = diff > soglia ? diff - soglia : 0, mn = diff < -soglia ? -diff - soglia : 0;
+      if (anno === 2024) { add("RT41", "1", "Totale dei corrispettivi", c); add("RT41", "2", "Totale dei costi o valori di acquisto", k); }
+      else { add("RT41", "3", "Corrispettivi delle cessioni 2025", c); add("RT41", "4", "Costi o valori di acquisto delle cessioni 2025", k); }
+      var mm = Math.min(minus, plus);
+      add("RT43", "", "Eccedenza delle minusvalenze degli anni precedenti", mm);
+      add("RT44", "2", "Minusvalenze certificate dagli intermediari", 0);
+      var e = Math.min(ecc, r0((plus - mm) * 0.26));
+      add("RT45", "", "Eccedenza d'imposta della dichiarazione precedente", e);
+      add("RT57", "1", "Minusvalenza", mn);
+      add("RT57", "2", anno === 2024 ? "Plusvalenza, per la parte che eccede 2.000 €" : "Plusvalenza (nessuna franchigia per le cessioni 2025)", plus);
+      add("RT88", "", "Differenza (RT57 col. 2 − RT43 − RT44 col. 2)", plus - mm);
+      var imp = r0((plus - mm) * 0.26);
+      add("RT89", "", "Imposta sostitutiva 26%", imp);
+      add("RT90", "", "Imposta sostitutiva dovuta (RT89 − RT45)", imp - e);
+      out.imposta = imp - e; out.minusvalenzaDaRiportare = mn; out.rigoMinus = "RT105 col. " + (anno === 2024 ? 5 : 5);
+      return out;
+    }
+    out.nonGestito = anno <= 2022
+      ? "Fino al 2022 le cripto seguono il regime delle valute (art. 67 c. 1 lett. c-ter TUIR): righi diversi, da compilare a cura dello studio dopo la verifica della giacenza oltre 51.645,69 €."
+      : "Il modello Redditi PF per l'anno " + anno + " non è ancora disponibile.";
+    return out;
+  }
+
+  /* Modello F24, sezione Erario, per i ravvedimenti calcolati (KoinlySanzioni.calcolaAnno).
+     Codici: 1727 IC saldo, 1715 imposta sostitutiva RT, 8945 sanzione e 1945 interessi da ravvedimento sulle imposte
+     (Ris. 36/E/2023, 10/E/2024, 12/E/2023; per l'IC per analogia), 8911 sanzione RW e dichiarazione tardiva.
+     Anno di riferimento = anno d'imposta; rateazione 0101 solo per il 1727. Gli anni con dichiarazione omessa non vanno in F24. */
+  function f24(calcoli) {
+    var righe = [], esclusi = [];
+    var add = function (codice, anno, importo, descr, rateazione) {
+      importo = r2(importo); if (!(importo > 0)) return;
+      var e = righe.filter(function (x) { return x.codice === codice && x.anno === anno; })[0];
+      if (e) { e.importo = r2(e.importo + importo); e.descrizione += " + " + descr; } else righe.push({ codice: codice, anno: anno, rateazione: rateazione || "", importo: importo, descrizione: descr });
+    };
+    calcoli.forEach(function (r) {
+      if (!r.ravvedibile) { esclusi.push(r.anno); return; }
+      r.voci.forEach(function (v) {
+        if (/IVACA/.test(v.voce)) { add("1727", r.anno, v.imposta, "IC saldo", "0101"); add("8945", r.anno, v.sanzione, "sanzione IC"); add("1945", r.anno, v.interessi, "interessi IC"); }
+        else if (/RT/.test(v.voce)) { add("1715", r.anno, v.imposta, "imposta sostitutiva RT"); add("8945", r.anno, v.sanzione, "sanzione RT"); add("1945", r.anno, v.interessi, "interessi RT"); }
+        else if (/RW/.test(v.voce)) add("8911", r.anno, v.sanzione, "sanzione RW");
+        else if (/tardiva/.test(v.voce)) add("8911", r.anno, v.sanzione, "dichiarazione tardiva");
+      });
+    });
+    var ordine = ["1727", "1715", "8945", "1945", "8911"];
+    righe.sort(function (a, b) { return a.anno - b.anno || ordine.indexOf(a.codice) - ordine.indexOf(b.codice); });
+    return { righe: righe, totale: r2(righe.reduce(function (a, x) { return a + x.importo; }, 0)), esclusi: esclusi };
+  }
+
+  return { quadroRW: quadroRW, quadroRT: quadroRT, f24: f24 };
 });

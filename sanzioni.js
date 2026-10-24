@@ -83,7 +83,10 @@
   /* imposta sulle plusvalenze RT: aliquota e franchigia per anno */
   function regimeRt(anno) {
     if (anno <= 2022) return { aliquota: 0.26, franchigia: 0, nota: "Fino al 2022 le cripto seguono il regime delle valute: plusvalenze tassate solo se la giacenza ha superato 51.645,69 € per 7 giorni lavorativi continui. Verificare il presupposto prima di usare questo importo." };
-    if (anno <= 2024) return { aliquota: 0.26, franchigia: 2000, nota: "Franchigia di 2.000 €: è tassata solo l'eccedenza (art. 67 c. 1 lett. c-sexies TUIR)." };
+    // 2023 (Redditi PF 2024, rigo RT33): tassata l'intera plusvalenza se non inferiore a 2.000 €
+    if (anno === 2023) return { aliquota: 0.26, franchigia: 2000, intera: true, nota: "Anno 2023: la plusvalenza si tassa per intero se è di almeno 2.000 € (istruzioni Redditi PF 2024, rigo RT33)." };
+    // 2024 (Redditi PF 2025, rigo RT57): tassata solo la parte che eccede 2.000 €
+    if (anno === 2024) return { aliquota: 0.26, franchigia: 2000, nota: "Anno 2024: si tassa solo la parte che eccede 2.000 € (istruzioni Redditi PF 2025, rigo RT57)." };
     if (anno === 2025) return { aliquota: 0.26, franchigia: 0, nota: "Dal 2025 nessuna franchigia." };
     return { aliquota: 0.33, franchigia: 0, nota: "Dal 2026 aliquota del 33% (26% per i token di moneta elettronica in euro)." };
   }
@@ -92,10 +95,11 @@
   function calcolaAnno(d) {
     var T = termini(d.anno), pag = d.pagamento, out = { anno: d.anno, stato: d.stato, termini: T, voci: [], note: [] };
     // l'imposta sul valore è dovuta dal 2023: prima resta solo l'obbligo di monitoraggio (RW) e la relativa sanzione
-    var valoreRw = Math.max(0, +d.valoreRw || 0), ivaca = d.anno >= 2023 ? Math.max(0, +d.ivaca || 0) : 0, plus = +d.plusvalenze || 0;
-    var rt = regimeRt(d.anno), baseRt = Math.max(0, plus - rt.franchigia), impRt = baseRt * rt.aliquota;
+    // imposte in unità di euro, come nei quadri RW (rigo RW8) e RT della dichiarazione da cui si versano
+    var valoreRw = Math.max(0, +d.valoreRw || 0), ivaca = d.anno >= 2023 ? Math.round(Math.max(0, +d.ivaca || 0)) : 0, plus = +d.plusvalenze || 0;
+    var rt = regimeRt(d.anno), baseRt = Math.round(rt.intera ? (plus >= rt.franchigia ? plus : 0) : Math.max(0, plus - rt.franchigia)), impRt = Math.round(baseRt * rt.aliquota);
     var imposte = ivaca + impRt;
-    out.rt = { plusvalenze: plus, franchigia: rt.franchigia, base: baseRt, aliquota: rt.aliquota, imposta: impRt, nota: rt.nota };
+    out.rt = { plusvalenze: plus, franchigia: rt.franchigia, intera: !!rt.intera, base: baseRt, aliquota: rt.aliquota, imposta: impRt, nota: rt.nota };
     if (d.anno < 2023) out.note.push("Per il " + d.anno + " l'imposta sul valore delle cripto-attività (IVACA) non era dovuta (si applica dal 2023): niente imposta né sanzioni IVACA, resta la sanzione per omesso monitoraggio nel quadro RW.");
 
     var inTermine = pag <= T.dichiarazione;

@@ -68,3 +68,21 @@ Fonti principali:
 - [Istruzioni Redditi PF 2026, fascicolo 2](https://www.agenziaentrate.gov.it/portale/documents/d/guest/pf2_istruzioni_2026_agg-13-05-2026)
 - [Circolare 30/E del 27/10/2023](https://www.agenziaentrate.gov.it/portale/documents/20143/5589638/Circolare+criptoattivita+del+27+ottobre+2023.pdf/1154a95a-80ea-a6ec-bcc0-731b844db9e6)
 - Normattiva: art. 5 DL 167/1990; artt. 1 e 13 D.Lgs. 471/1997; art. 13 D.Lgs. 472/1997
+
+## Codici tributo F24 (ricerca del 24/10/2026)
+
+| Codice | Descrizione | Fonte |
+|---|---|---|
+| 1727 / 1728 / 1729 | Imposta sulle cripto-attività: saldo, primo acconto, secondo acconto | Ris. 36/E/2023, ridenominati dalla Ris. 10/E/2024 [C] |
+| 1715 | Imposta sostitutiva su plusvalenze e altri proventi da cripto-attività, regime dichiarativo (quadro RT) | Ris. 36/E/2023 [C] |
+| 8945 / 1945 | Sanzione e interessi da ravvedimento su altre imposte sui redditi e imposte sostitutive | Ris. 12/E/2023 [C]; per l'IC per analogia [S] |
+| 8911 | Sanzioni per altre violazioni tributarie: quadro RW e dichiarazione tardiva | [C] codice attivo; associazione esplicita all'RW [S] |
+| 8913 / 1992 | Soppressi dal 2/5/2023 | Ris. 12/E/2023 |
+
+## Quadro RT, franchigia di 2.000 €
+
+| Anno | Istruzioni | Regola |
+|---|---|---|
+| 2023 | Redditi PF 2024, rigo RT33 | La differenza «deve essere non inferiore a 2.000 euro»: si tassa per intero |
+| 2024 | Redditi PF 2025, rigo RT57 | Si indica la differenza «per la parte che eccede la soglia di euro 2.000» |
+| 2025 | Redditi PF 2026 | Nessuna franchigia per le cessioni dell'anno |

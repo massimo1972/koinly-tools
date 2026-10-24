@@ -219,7 +219,7 @@
       : '<tr class="tot"><td>Sanzioni minime per omessa dichiarazione</td><td></td><td class="n">' + E(r.sanzionePiena) + '</td><td></td></tr><tr class="tot"><td>Sanzioni ridotte a 1/3 (definizione dopo la contestazione)</td><td></td><td class="n">' + E(r.sanzioneUnTerzo) + '</td><td></td></tr><tr class="tot"><td colspan="3">Totale indicativo con imposte e interessi</td><td class="n">' + E(r.totale) + "</td></tr>";
     return '<table class="det"><thead><tr><th>Voce</th><th class="n">Imposta</th><th class="n">Sanzione</th><th class="n">Interessi</th></tr></thead><tbody>' + righe + tot + "</tbody></table>" +
       '<p class="small" style="margin:6px 0 0">Scadenze ' + r.anno + ": dichiarazione " + D.it(r.termini.dichiarazione) + ", saldo " + D.it(r.termini.saldo) + " · " + (r.regime === "nuovo" ? "violazione dal 1/9/2024: art. 13 D.Lgs. 472/1997 e art. 1 D.Lgs. 471/1997 nel testo del D.Lgs. 87/2024" : "violazione fino al 31/8/2024: testo previgente") +
-      ". RT: plusvalenze " + E(r.rt.plusvalenze) + (r.rt.franchigia ? " − franchigia " + E(r.rt.franchigia, 0) : "") + " × " + Math.round(r.rt.aliquota * 100) + "%. " + esc(r.rt.nota) + "</p>";
+      ". RT: plusvalenze " + E(r.rt.plusvalenze) + (r.rt.franchigia ? (r.rt.intera ? " (intera se almeno " + E(r.rt.franchigia, 0) + ")" : " − franchigia " + E(r.rt.franchigia, 0)) : "") + " × " + Math.round(r.rt.aliquota * 100) + "%. " + esc(r.rt.nota) + "</p>";
   }
   function viewSanzioni() {
     var Sz = S.sanz, calc = calcoliSanzioni();
@@ -295,8 +295,39 @@
         '<p class="small">La circolare 30/E chiede un rigo per ogni portafoglio: qui i periodi sono calcolati sul totale dei wallet di ciascuna cripto.</p>' +
         '<div class="scroll">' + tabellaRW(q) + "</div></div>";
     }
-    h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Quadro RT e modello F24</h3><p class="muted">In preparazione: righi della sezione cripto-attività del quadro RT e F24 con i codici tributo di imposte, sanzioni e interessi, dopo la verifica dei codici sulle risoluzioni dell\'Agenzia.</p></div>';
+    // quadro RT: dagli anni della pagina Sanzioni (corrispettivi e costi)
+    h += '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Quadro RT · cripto-attività</h3>' + (S.sanz.anni.length ? '<button type="button" class="btn gold" id="stampaRT">Stampa / PDF quadro RT</button>' : "") + "</div>";
+    h += S.sanz.anni.length ? S.sanz.anni.map(function (a) { return tabellaRT(a); }).join("") : '<p class="muted">Il quadro RT si compila dagli anni inseriti nella pagina Sanzioni (corrispettivi delle vendite e costi di acquisto).</p>';
+    h += "</div>";
+    // F24
+    var f = MOD.f24(calcoliSanzioni());
+    h += '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Modello F24 · ravvedimento</h3>' + (f.righe.length ? '<button type="button" class="btn gold" id="stampaF24">Stampa / PDF modello F24</button>' : "") + "</div>" +
+      '<div class="grid2" style="margin:10px 0"><label class="f"><span class="t">Codice fiscale del contribuente</span><input type="text" data-modt="cf" value="' + esc(S.modelli.cf || "") + '" maxlength="16" autocomplete="off"></label><label class="f"><span class="t">Cognome e nome</span><input type="text" data-modt="nome" value="' + esc(S.modelli.nome || "") + '" autocomplete="off"></label></div>' +
+      (f.righe.length ? tabellaF24(f) : '<p class="muted">L\'F24 si compila dai ravvedimenti della pagina Sanzioni.</p>') + "</div>";
     return h;
+  }
+  function tabellaRT(a) {
+    var q = MOD.quadroRT(a.anno, +a.corrispettivi || 0, +a.costi || 0, {});
+    if (q.nonGestito) return '<h4>Anno ' + a.anno + '</h4><p class="small">' + esc(q.nonGestito) + "</p>";
+    return "<h4>Anno " + a.anno + " · " + esc(q.modello) + '</h4><table class="det" style="width:auto;min-width:60%"><thead><tr><th>Rigo</th><th>Col.</th><th>Descrizione</th><th class="n">Importo</th></tr></thead><tbody>' +
+      q.righi.map(function (x) { return "<tr><td>" + x.rigo + "</td><td>" + (x.col || "") + "</td><td>" + esc(x.descrizione) + '</td><td class="n">' + E(x.valore, 0) + "</td></tr>"; }).join("") +
+      "</tbody></table>" + (q.minusvalenzaDaRiportare ? '<p class="small">Minusvalenza da riportare negli anni successivi (fino al quarto): ' + E(q.minusvalenzaDaRiportare, 0) + ", rigo " + q.rigoMinus + ".</p>" : "") +
+      '<p class="small">Importi in unità di euro. Minusvalenze di anni precedenti ed eccedenze d\'imposta non indicate: aggiungerle se esistono. Dati Koinly non rettificati.</p>';
+  }
+  function tabellaF24(f) {
+    return '<table class="det f24"><thead><tr><th>Sezione</th><th>Codice tributo</th><th>Rateazione / mese rif.</th><th>Anno di riferimento</th><th class="n">Importi a debito versati</th><th>Voce</th></tr></thead><tbody>' +
+      f.righe.map(function (x) { return "<tr><td>Erario</td><td><b>" + x.codice + "</b></td><td>" + (x.rateazione || "") + "</td><td>" + x.anno + '</td><td class="n">' + E(x.importo) + "</td><td class=\"small\">" + esc(x.descrizione) + "</td></tr>"; }).join("") +
+      '<tr class="tot"><td colspan="4">Totale (saldo) · data di versamento ' + D.it(S.sanz.pagamento) + '</td><td class="n">' + E(f.totale) + "</td><td></td></tr></tbody></table>" +
+      (f.esclusi.length ? '<p class="small" style="color:var(--hi)">Anni con dichiarazione omessa non inseriti (' + f.esclusi.join(", ") + "): il ravvedimento non è possibile; è opportuno attendere la contestazione dell'Agenzia.</p>" : "") +
+      '<p class="small">Codici: 1727 imposta sulle cripto-attività, saldo (Ris. 36/E/2023 e 10/E/2024); 1715 imposta sostitutiva su plusvalenze da cripto-attività, quadro RT (Ris. 36/E/2023); 8945 sanzione e 1945 interessi da ravvedimento su imposte sui redditi e sostitutive (Ris. 12/E/2023: per l\'imposta sulle cripto-attività in assenza di codici specifici); 8911 sanzioni per altre violazioni (quadro RW, dichiarazione tardiva). Anno di riferimento: anno d\'imposta. Codici da ricontrollare prima del versamento.</p>';
+  }
+  function datiContribuente() { return '<table class="dati"><tr><td>Contribuente</td><td>' + esc(S.modelli.nome || "________________") + "</td></tr><tr><td>Codice fiscale</td><td>" + esc(S.modelli.cf || "________________") + "</td></tr></table>"; }
+  function stampaRT() {
+    apriStampa(intestazione("Modello Redditi PF · Quadro RT cripto-attività") + datiContribuente() + S.sanz.anni.map(function (a) { return tabellaRT(a); }).join("") + firma());
+  }
+  function stampaF24() {
+    var f = MOD.f24(calcoliSanzioni());
+    apriStampa(intestazione("Modello F24 · ravvedimento cripto-attività") + datiContribuente() + "<h2>Sezione Erario</h2>" + tabellaF24(f) + firma());
   }
   function stampaRW() {
     var q = MOD.quadroRW(ivaca, { titolo: S.modelli.titolo, sogliaPeriodi: S.modelli.sogliaPeriodi });
@@ -393,6 +424,7 @@
     if (t.matches("input[type=file][data-slot]") && t.files[0]) { carica(t.getAttribute("data-slot"), t.files[0]); return; }
     if (t.matches("[data-incl]")) { S.inclusi[t.getAttribute("data-incl")] = t.checked; ricalcola(); render(); return; }
     if (t.matches("[data-val]")) { var k = t.getAttribute("data-val"); S.valori[k] = t.value === "" ? null : +t.value; ricalcola(); render(); return; }
+    if (t.matches("[data-modt]")) { S.modelli[t.getAttribute("data-modt")] = t.value.trim(); return; }
     if (t.matches("[data-mod]")) { S.modelli[t.getAttribute("data-mod")] = +t.value; render(); return; }
     if (t.matches("[data-sz]")) { S.sanz[t.getAttribute("data-sz")] = t.value || oggiIso; render(); return; }
     if (t.matches("[data-zfile]") && t.files[0]) { caricaReportAnno(+t.getAttribute("data-zfile"), t.files[0]); return; }
@@ -413,6 +445,8 @@
     else if (t.id === "aggiungiAnno") { nuovoAnno(); render(); }
     else if (t.id === "stampaSanz") stampaSanzioni();
     else if (t.id === "stampaRW") stampaRW();
+    else if (t.id === "stampaRT") stampaRT();
+    else if (t.id === "stampaF24") stampaF24();
     else if (t.matches("[data-toglianno]")) { var id = +t.getAttribute("data-toglianno"); S.sanz.anni = S.sanz.anni.filter(function (x) { return x.id !== id; }); render(); }
     else if (t.matches("[data-usaivaca]")) { var ya = S.sanz.anni.filter(function (x) { return x.id === +t.getAttribute("data-usaivaca"); })[0]; ya.ivaca = Math.round(ivaca.totali.ivaca * 100) / 100; ya.fonte.ivaca = "calcolo"; render(); }
   });
