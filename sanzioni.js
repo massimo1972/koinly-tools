@@ -1,3 +1,4 @@
+/* Koinly Tools · Copyright (C) 2026 Massimo Esposito · licenza GNU AGPL-3.0 (file LICENSE) */
 /* Koinly Tools · sanzioni e ravvedimento per cripto-attività non dichiarate (quadri RW e RT, imposta sul valore IVACA).
    Norme lette su Normattiva il 24/10/2026, testo previgente e testo modificato dal D.Lgs. 87/2024
    (violazioni commesse dal 1° settembre 2024, art. 5 c. 1 D.Lgs. 87/2024):

@@ -1,3 +1,4 @@
+/* Koinly Tools · Copyright (C) 2026 Massimo Esposito · licenza GNU AGPL-3.0 (file LICENSE) */
 /* Koinly Tools · lettura dei report Koinly (Complete Tax Report in PDF, End of Year Holdings in CSV).
    Restituisce anno, riepilogo plusvalenze, redditi e saldi di fine anno. Funziona nel browser e in Node per le prove.
    I report possono essere in italiano o in inglese e con numeri in formato 1,234.56 oppure 1.234,56. */

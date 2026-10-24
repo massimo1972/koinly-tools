@@ -2,6 +2,8 @@
 
 Programma a codice aperto (open source), mantenuto con le donazioni in bitcoin su Lightning Network. Indirizzo per le donazioni e link al codice in `studio.js`.
 
+> Koinly Tools non è affiliato né approvato da Koinly. «Koinly» è un marchio dei rispettivi titolari, citato solo per indicare i report compatibili.
+
 Web app statica per le cripto-attività a partire dai report Koinly. Tutto gira nel browser: i file caricati non vengono salvati né inviati in rete. È pensata per essere incorporata (iframe) nella pagina del sito dello studio; `_headers` consente l'incorporamento da studiomecommercialisti.it.
 
 ## 1. Giorni di detenzione e IVACA
@@ -94,3 +96,19 @@ node test/modelli.test.js
 ```
 
 I dati delle prove sono inventati. I file reali dei clienti vanno solo nella cartella `campioni/`, esclusa da Git.
+
+## Licenza
+
+Copyright (C) 2026 Dott. Massimo Esposito. Il codice è rilasciato con licenza AGPL-3.0; nome, dati, testi e contenuti dello studio: tutti i diritti riservati al Dott. Massimo Esposito.
+
+Questo programma è software libero: si può ridistribuire e modificare secondo i termini della **GNU Affero General Public License versione 3** (AGPL-3.0), pubblicata dalla Free Software Foundation. Il testo completo è nel file [LICENSE](LICENSE). Chi modifica il programma e lo rende disponibile ad altri, anche come servizio web, deve pubblicare il codice modificato con la stessa licenza.
+
+Il programma è distribuito senza alcuna garanzia: i conteggi vanno sempre verificati da un professionista.
+
+Esclusioni:
+
+| Parte | Licenza |
+|---|---|
+| `comune/vendor/` (pdf.js) | Apache 2.0, dei rispettivi autori |
+| `comune/fonts/` (Source Sans 3, Source Serif 4, IBM Plex Mono) | SIL Open Font License |
+| Dati e recapiti dello studio in `studio.js`, QR code delle donazioni in `img/` | Non coperti dalla licenza e non riutilizzabili: chi riusa il programma deve inserire i propri |

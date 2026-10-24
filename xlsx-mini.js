@@ -1,3 +1,4 @@
+/* Koinly Tools · Copyright (C) 2026 Massimo Esposito · licenza GNU AGPL-3.0 (file LICENSE) */
 /* Lumes Lab · generatore minimo di file Excel (.xlsx) senza librerie esterne.
    Scrive formule (ricalcolate all'apertura), stili essenziali e larghezze di colonna. Funziona anche in Node per le prove. */
 (function (root, factory) {

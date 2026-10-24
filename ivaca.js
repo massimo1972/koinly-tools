@@ -1,3 +1,4 @@
+/* Koinly Tools · Copyright (C) 2026 Massimo Esposito · licenza GNU AGPL-3.0 (file LICENSE) */
 /* Koinly Tools · imposta sul valore delle cripto-attività (IVACA, quadro RW col. 33).
    Istruzioni Redditi PF: imposta = valore finale × 0,20% × quota × giorni / 365 (art. 19 cc. 18-21 DL 201/2011).
    Valore iniziale e finale sono quelli di inizio e fine detenzione, non del 1/1 e del 31/12: ogni periodo a quantità

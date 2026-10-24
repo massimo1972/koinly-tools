@@ -1,3 +1,4 @@
+/* Koinly Tools · Copyright (C) 2026 Massimo Esposito · licenza GNU AGPL-3.0 (file LICENSE) */
 /* Koinly Tools · compilazione dei quadri del modello Redditi PF (RW, RT) e del modello F24.
    Quadro RW (istruzioni Redditi PF, fascicolo 2): un rigo per ogni periodo di detenzione, cinque righi (RW1-RW5) per modulo.
    Colonne usate per le cripto-attività: 1 titolo di possesso, 3 codice bene 21, 4 codice Stato (non obbligatorio per le cripto),

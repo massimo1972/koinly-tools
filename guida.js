@@ -1,3 +1,4 @@
+/* Koinly Tools · Copyright (C) 2026 Massimo Esposito · licenza GNU AGPL-3.0 (file LICENSE) */
 /* Koinly Tools · guida per il cliente (scheda «Guida» e stampa). */
 window.KoinlyGuida = '' +
 '<h2>Guida: come funziona Koinly Tools</h2>' +
@@ -40,4 +41,5 @@ window.KoinlyGuida = '' +
 '<li>I risultati dipendono dai dati di Koinly: se in Koinly mancano operazioni o prezzi, anche i conteggi saranno incompleti.</li>' +
 '<li>Il programma somma tutti i wallet per ciascuna cripto. Nella dichiarazione va compilato un rigo per ogni portafoglio: lo studio ripartisce i valori.</li>' +
 '<li>Le stablecoin (USDT, USDC…) sono cripto-attività e sono comprese; gli euro e le altre valute sui conti degli exchange no.</li>' +
-'<li>I conteggi sono una stima da verificare con lo studio: non sostituiscono il parere del professionista e non vanno usati per versare imposte o sanzioni senza averne parlato.</li></ul></div>';
+'<li>I conteggi sono una stima da verificare con lo studio: non sostituiscono il parere del professionista e non vanno usati per versare imposte o sanzioni senza averne parlato.</li>' +
+'<li>Koinly Tools non è affiliato né approvato da Koinly: «Koinly» è un marchio dei rispettivi titolari, citato solo per indicare i report compatibili.</li></ul></div>';

@@ -1,3 +1,4 @@
+/* Koinly Tools · Copyright (C) 2026 Massimo Esposito · licenza GNU AGPL-3.0 (file LICENSE) */
 /* Koinly Tools · interfaccia. I file caricati restano nel browser: non vengono salvati né inviati in rete. */
 (function () {
   "use strict";
@@ -345,12 +346,16 @@
   function progetto() {
     var st = window.KoinlyStudio || {};
     return "Koinly Tools è un programma a codice aperto (open source)" + (st.codiceSorgente ? ': il codice è pubblicato su <a href="' + esc(st.codiceSorgente) + '" target="_blank" rel="noopener">' + esc(st.codiceSorgente.replace(/^https?:\/\//, "")) + "</a>" : "") +
-      ". Si mantiene con le donazioni in bitcoin su Lightning Network" + (st.donazioniLightning ? ": <b>" + esc(st.donazioniLightning) + "</b>" : "") + ". Grazie a chi contribuisce.";
+      ", con licenza AGPL-3.0. Si mantiene con le donazioni in bitcoin su Lightning Network" + (st.donazioniLightning ? ": <b>" + esc(st.donazioniLightning) + "</b>" : "") + ". Grazie a chi contribuisce.";
   }
   /* frase sulle donazioni con il QR code Lightning (verificato: punta a moderncelery862@walletofsatoshi.com) */
   function donazioni() {
     var st = window.KoinlyStudio || {};
     return '<div class="donazioni-box"><p class="donazioni">' + progetto() + "</p>" + (st.donazioniLightning ? '<img src="img/qr-lightning.png" width="160" height="160" alt="QR code per donazioni in bitcoin su Lightning Network a ' + esc(st.donazioniLightning) + '">' : "") + "</div>";
+  }
+  function diritti() {
+    var st = window.KoinlyStudio || {};
+    return '<p class="small diritti">© ' + new Date().getFullYear() + " " + esc(st.professionista) + ". Il codice del programma è rilasciato con licenza AGPL-3.0; nome, dati, testi e contenuti dello studio: tutti i diritti riservati al " + esc(st.professionista) + ".</p>";
   }
   function viewGuida() {
     return '<div class="toolbar noprint" style="justify-content:flex-end;margin-bottom:10px"><button type="button" class="btn gold" id="stampaGuida">Stampa / PDF della guida</button></div>' + (window.KoinlyGuida || "") + contattiStudio() +
@@ -360,7 +365,7 @@
     nav();
     var aperto = document.getElementById("spam"); if (aperto) S.spamAperti = aperto.open;
     app.innerHTML = (S.tab === 0 ? viewIvaca() : S.tab === 1 ? viewSanzioni() : S.tab === 2 ? viewModelli() : viewGuida()) +
-      '<footer class="piede noprint">' + donazioni() + "</footer>";
+      '<footer class="piede noprint">' + donazioni() + '<p class="small muted marchio">Koinly Tools non è affiliato né approvato da Koinly. «Koinly» è un marchio dei rispettivi titolari, citato solo per indicare i report compatibili.</p>' + diritti() + "</footer>";
   }
 
   /* ---------- Excel ---------- */
@@ -405,7 +410,7 @@
       '<div class="contatti">' + [esc(st.indirizzo || ""), unisci([st.telefono && "Tel. " + st.telefono, st.email && "mail: " + st.email]), unisci([st.sito, st.partitaIva && "P.IVA " + st.partitaIva])].filter(Boolean).join("<br>") + "</div></div>" +
       '<div class="testata"><h1>' + esc(titolo) + "</h1><p>Firenze, " + esc(oggi) + "</p></div>";
   }
-  function firma() { var st = window.KoinlyStudio || {}; return '<p class="firma">Elaborazione a cura del ' + esc(st.professionista) + "</p>"; }
+  function firma() { var st = window.KoinlyStudio || {}; return '<p class="firma">Elaborazione a cura del ' + esc(st.professionista) + "</p>" + diritti(); }
   function apriStampa(h) {
     var box = document.getElementById("resoconto") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "resoconto" }));
     box.innerHTML = h;
@@ -467,7 +472,7 @@
     else if (t.id === "aggiungiAnno") { nuovoAnno(); render(); }
     else if (t.id === "stampaSanz") stampaSanzioni();
     else if (t.id === "stampaRW") stampaRW();
-    else if (t.id === "stampaGuida") apriStampa(intestazione("Koinly Tools · guida per il cliente") + (window.KoinlyGuida || "").replace(/^<h2>[^<]*<\/h2>/, "") + contattiStudio() + donazioni());
+    else if (t.id === "stampaGuida") apriStampa(intestazione("Koinly Tools · guida per il cliente") + (window.KoinlyGuida || "").replace(/^<h2>[^<]*<\/h2>/, "") + contattiStudio() + donazioni() + diritti());
     else if (t.matches("[data-tab]")) { S.tab = +t.getAttribute("data-tab"); render(); window.scrollTo(0, 0); }
     else if (t.id === "stampaRT") stampaRT();
     else if (t.id === "stampaF24") stampaF24();
