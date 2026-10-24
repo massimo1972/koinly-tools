@@ -5,7 +5,7 @@
   if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = "comune/vendor/pdf.worker.min.js";
   var app = document.getElementById("app");
 
-  var TABS = ["Giorni di detenzione e IVACA", "Sanzioni RW e RT", "Quadri RW, RT e F24"];
+  var TABS = ["Giorni di detenzione e IVACA", "Sanzioni RW e RT", "Quadri RW, RT e F24", "Guida"];
   var S = { tab: 0, tx: null, inizio: null, fine: null, anno: null, fuso: "UTC", quota: 100, inclusi: {}, valori: {}, aperti: {}, spamAperti: false, errore: {} };
   var calcolo = null, ivaca = null;
 
@@ -93,7 +93,7 @@
   }
   function viewIvaca() {
     var h = '<h2>Giorni di detenzione e IVACA</h2><p class="lead">Dalle transazioni Koinly si ricostruiscono, cripto per cripto e sul totale di tutti i wallet, i giorni di detenzione dell\'anno e i periodi a quantità costante; con il valore di fine anno si calcola l\'imposta sul valore delle cripto-attività (quadro RW, col. 33).</p>' +
-      '<div class="banner"><strong>Riservatezza</strong><p>I file restano in questo browser: non vengono salvati né inviati in rete.</p></div>' +
+      '<div class="banner"><strong>Riservatezza</strong><p>I file restano in questo browser: non vengono salvati né inviati in rete. Non sapete quali file caricare? <button type="button" class="btnlink" data-tab="3">Leggete la guida</button>.</p></div>' +
       '<div class="panel"><div class="slots">' +
       slot("tx", "Transazioni", true, "CSV di Koinly con tutte le transazioni: «backup_transactions_koinly.csv» oppure «transaction history».", ".csv,text/csv") +
       slot("inizio", "Saldi a inizio anno", true, "«Beginning of year holdings» in CSV (o il report di fine dell'anno precedente): quantità e valori al 1° gennaio.", ".csv,.pdf") +
@@ -335,10 +335,26 @@
       '<table class="dati"><tr><td>Titolo di possesso (col. 1)</td><td>' + S.modelli.titolo + " · " + TITOLI[S.modelli.titolo] + "</td></tr><tr><td>Righi</td><td>" + q.righi.length + " (" + q.moduli + " moduli)</td></tr><tr><td>Transazioni</td><td>" + esc(S.tx.nome) + "</td></tr></table>" +
       tabellaRW(q) + '<p class="nota">' + (S.modelli.sogliaPeriodi > 0 ? "Le cripto con più di " + S.modelli.sogliaPeriodi + " periodi sono in un rigo unico: col. 7 valore iniziale del primo periodo, col. 8 valore medio ponderato per i giorni, col. 10 giorni complessivi; l'imposta è uguale alla somma dei periodi. " : "") + 'Per le altre, un rigo per ogni periodo di detenzione a quantità costante: valore iniziale e finale di inizio e fine detenzione, giorni del periodo, imposta = valore finale × 0,20% × quota × giorni / 365. Codice bene 21; codice Stato non obbligatorio per le cripto-attività. La circolare 30/E chiede un rigo per portafoglio: i periodi sono calcolati sul totale dei wallet di ciascuna cripto.</p>' + firma());
   }
+  /* ---------- guida per il cliente ---------- */
+  function contattiStudio() {
+    var st = window.KoinlyStudio || {};
+    return '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Per domande</h3><p>' + esc(st.professionista) + " · " + esc(st.qualifica) + "<br>" + esc(st.indirizzo) + (st.email ? " · mail: " + esc(st.email) : "") + (st.telefono ? " · Tel. " + esc(st.telefono) : "") + "</p></div>";
+  }
+  /* codice aperto e donazioni: mostrati in fondo alla guida e a ogni pagina */
+  function progetto() {
+    var st = window.KoinlyStudio || {};
+    return "Koinly Tools è un programma a codice aperto (open source)" + (st.codiceSorgente ? ': il codice è pubblicato su <a href="' + esc(st.codiceSorgente) + '" target="_blank" rel="noopener">' + esc(st.codiceSorgente.replace(/^https?:\/\//, "")) + "</a>" : "") +
+      ". Si mantiene con le donazioni in bitcoin su Lightning Network" + (st.donazioniLightning ? ": <b>" + esc(st.donazioniLightning) + "</b>" : "") + ". Grazie a chi contribuisce.";
+  }
+  function viewGuida() {
+    return '<div class="toolbar noprint" style="justify-content:flex-end;margin-bottom:10px"><button type="button" class="btn gold" id="stampaGuida">Stampa / PDF della guida</button></div>' + (window.KoinlyGuida || "") + contattiStudio() +
+      '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Codice aperto e donazioni</h3><p>' + progetto() + "</p></div>";
+  }
   function render() {
     nav();
     var aperto = document.getElementById("spam"); if (aperto) S.spamAperti = aperto.open;
-    app.innerHTML = S.tab === 0 ? viewIvaca() : S.tab === 1 ? viewSanzioni() : viewModelli();
+    app.innerHTML = (S.tab === 0 ? viewIvaca() : S.tab === 1 ? viewSanzioni() : S.tab === 2 ? viewModelli() : viewGuida()) +
+      '<footer class="piede noprint"><p class="small muted">' + progetto() + "</p></footer>";
   }
 
   /* ---------- Excel ---------- */
@@ -445,6 +461,8 @@
     else if (t.id === "aggiungiAnno") { nuovoAnno(); render(); }
     else if (t.id === "stampaSanz") stampaSanzioni();
     else if (t.id === "stampaRW") stampaRW();
+    else if (t.id === "stampaGuida") apriStampa(intestazione("Koinly Tools · guida per il cliente") + (window.KoinlyGuida || "").replace(/^<h2>[^<]*<\/h2>/, "") + contattiStudio() + '<p class="nota">' + progetto() + "</p>");
+    else if (t.matches("[data-tab]")) { S.tab = +t.getAttribute("data-tab"); render(); window.scrollTo(0, 0); }
     else if (t.id === "stampaRT") stampaRT();
     else if (t.id === "stampaF24") stampaF24();
     else if (t.matches("[data-toglianno]")) { var id = +t.getAttribute("data-toglianno"); S.sanz.anni = S.sanz.anni.filter(function (x) { return x.id !== id; }); render(); }

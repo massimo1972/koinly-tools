@@ -1,5 +1,7 @@
 # Koinly Tools
 
+Programma a codice aperto (open source), mantenuto con le donazioni in bitcoin su Lightning Network. Indirizzo per le donazioni e link al codice in `studio.js`.
+
 Web app statica per le cripto-attività a partire dai report Koinly. Tutto gira nel browser: i file caricati non vengono salvati né inviati in rete. È pensata per essere incorporata (iframe) nella pagina del sito dello studio; `_headers` consente l'incorporamento da studiomecommercialisti.it.
 
 ## 1. Giorni di detenzione e IVACA
@@ -64,6 +66,10 @@ Prospetti compilati secondo i modelli ministeriali, stampabili in PDF con l'inte
 
   Anno di riferimento = anno d'imposta. Gli anni con dichiarazione omessa non vanno in F24.
 
+## 4. Guida
+
+Scheda «Guida» per il cliente (`guida.js`): quali file Koinly scaricare, come usare le tre pagine, avvertenze. Si stampa o si salva in PDF con l'intestazione dello studio.
+
 ## File
 
 | File | Contenuto |
@@ -74,6 +80,7 @@ Prospetti compilati secondo i modelli ministeriali, stampabili in PDF con l'inte
 | `ivaca.js` | Valori dei periodi e imposta |
 | `sanzioni.js` | Sanzioni, frazioni di ravvedimento, interessi legali, scadenze per anno |
 | `studio.js` | Dati dello studio per la stampa |
+| `guida.js` | Testo della guida per il cliente |
 | `modelli.js` | Quadri RW e RT del modello Redditi PF e modello F24 |
 | `xlsx-mini.js` | Scrittura dei file Excel senza librerie |
 | `comune/` | Grafica, caratteri, pdf.js 3.11.174 e lettura dei PDF (da strumenti-lumes) |

@@ -7,5 +7,8 @@ window.KoinlyStudio = {
   email: "info@studiomecryptoassettasse.it",
   telefono: "",
   sito: "",
-  partitaIva: "05428060486"
+  partitaIva: "05428060486",
+  // progetto: codice aperto e donazioni in bitcoin su Lightning Network (indirizzo da inserire, es. nome@dominio o LNURL)
+  codiceSorgente: "",
+  donazioniLightning: ""
 };
