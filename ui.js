@@ -210,7 +210,11 @@
   function stampa() {
     var iv = ivaca, righe = iv.righe.filter(function (r) { return r.incluso; });
     var oggi = new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" });
-    var h = '<div class="testata"><h1>Giorni di detenzione e IVACA ' + S.anno + "</h1><p>Koinly Tools · " + esc(oggi) + "</p></div>" +
+    var st = window.KoinlyStudio || {};
+    var unisci = function (v) { return v.filter(Boolean).map(esc).join(" · "); };
+    var h = '<div class="studio"><div><b>' + esc(st.professionista) + "</b><br><span>" + esc(st.qualifica) + "</span></div>" +
+      '<div class="contatti">' + [esc(st.indirizzo || ""), unisci([st.telefono && "Tel. " + st.telefono, st.email && "mail: " + st.email]), unisci([st.sito, st.partitaIva && "P.IVA " + st.partitaIva])].filter(Boolean).join("<br>") + "</div></div>" +
+      '<div class="testata"><h1>Giorni di detenzione e IVACA ' + S.anno + "</h1><p>Firenze, " + esc(oggi) + "</p></div>" +
       '<table class="dati"><tr><td>Transazioni</td><td>' + esc(S.tx.nome) + " (" + S.tx.dati.movimenti.length.toLocaleString("it-IT") + " righe; " + calcolo.transazioniAnno.toLocaleString("it-IT") + " nell'anno)</td></tr>" +
       "<tr><td>Saldi a inizio anno</td><td>" + esc(S.inizio.nome) + "</td></tr><tr><td>Saldi a fine anno</td><td>" + esc(S.fine.nome) + "</td></tr>" +
       "<tr><td>Fuso orario delle date</td><td>" + (calcolo.fuso === "UTC" ? "UTC" : "ora italiana") + "</td></tr><tr><td>Quota di possesso</td><td>" + Math.round(iv.quota * 10000) / 100 + "%</td></tr></table>" +
@@ -225,7 +229,8 @@
           r.periodi.map(function (p) { return "<tr><td>" + it(p.dal) + "</td><td>" + it(p.al) + '</td><td class="n">' + p.giorni + '</td><td class="n">' + QU(p.quantita, r) + '</td><td class="n">' + E(p.valoreIniziale) + fonte(p.fonteIniziale) + '</td><td class="n">' + E(p.valore) + fonte(p.fonteFinale) + '</td><td class="n">' + E(p.ivaca, 4) + "</td></tr>"; }).join("") + '<tr class="tot"><td>Totale</td><td></td><td class="n">' + r.periodi.reduce(function (a, p) { return a + p.giorni; }, 0) + '</td><td colspan="3"></td><td class="n">' + E(r.ivaca) + "</td></tr>" +
           "</tbody></table>" + (r.note.length ? '<p class="nota">' + r.note.map(esc).join(" · ") + "</p>" : "");
       }).join("") +
-      '<p class="nota">Valori ai prezzi Koinly: dal controvalore in euro delle transazioni e, per i periodi che iniziano il 1/1 o finiscono il 31/12, dai report dei saldi. * prezzo stimato con l\'ultimo noto · ✎ valore inserito a mano. Il calcolo somma tutti i wallet; la circolare 30/E chiede un rigo RW per portafoglio. Stima da verificare: non sostituisce il parere del professionista.</p>';
+      '<p class="nota">Valori ai prezzi Koinly: dal controvalore in euro delle transazioni e, per i periodi che iniziano il 1/1 o finiscono il 31/12, dai report dei saldi. * prezzo stimato con l\'ultimo noto · ✎ valore inserito a mano. Il calcolo somma tutti i wallet; la circolare 30/E chiede un rigo RW per portafoglio. Stima da verificare: non sostituisce il parere del professionista.</p>' +
+      '<p class="firma">Elaborazione a cura del ' + esc(st.professionista) + "</p>";
     var box = document.getElementById("resoconto") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "resoconto" }));
     box.innerHTML = h;
     document.body.classList.add("in-stampa");

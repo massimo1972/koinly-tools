@@ -37,6 +37,11 @@ table.periodi{font-size:.8rem;margin:6px 0 4px}
   body{background:#fff;color:#000;font-size:9pt}
   body.in-stampa header.band,body.in-stampa main{display:none!important}
   body.in-stampa #resoconto{display:block}
+  #resoconto .studio{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;padding-bottom:6px;margin-bottom:10px;border-bottom:1px solid #14284a;font-size:8.5pt;line-height:1.35}
+  #resoconto .studio b{font:600 13pt var(--f-display);color:#14284a}
+  #resoconto .studio span{color:#555}
+  #resoconto .studio .contatti{text-align:right;color:#333}
+  #resoconto .firma{margin-top:18px;font-size:8.5pt;text-align:right}
   #resoconto h1{font:600 16pt var(--f-display);margin:0}
   #resoconto h2{font:600 11pt var(--f-display);margin:14px 0 4px;break-after:avoid}
   #resoconto .testata{border-bottom:2px solid #a8822f;padding-bottom:4px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
