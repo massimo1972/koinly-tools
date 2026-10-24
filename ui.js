@@ -93,6 +93,7 @@
   }
   function viewIvaca() {
     var h = '<h2>Giorni di detenzione e IVACA</h2><p class="lead">Dalle transazioni Koinly si ricostruiscono, cripto per cripto e sul totale di tutti i wallet, i giorni di detenzione dell\'anno e i periodi a quantità costante; con il valore di fine anno si calcola l\'imposta sul valore delle cripto-attività (quadro RW, col. 33).</p>' +
+      '<div class="banner beta-avviso"><strong>Versione beta</strong><p>Koinly Tools è in fase di test: i risultati vanno verificati con lo studio prima di usarli per la dichiarazione o per qualsiasi versamento. Segnalazioni e suggerimenti sono benvenuti.</p></div>' +
       '<div class="banner"><strong>Riservatezza</strong><p>I file restano in questo browser: non vengono salvati né inviati in rete. Non sapete quali file caricare? <button type="button" class="btnlink" data-tab="3">Leggete la guida</button>.</p></div>' +
       '<div class="panel"><div class="slots">' +
       slot("tx", "Transazioni", true, "CSV di Koinly con tutte le transazioni: «backup_transactions_koinly.csv» oppure «transaction history».", ".csv,text/csv") +

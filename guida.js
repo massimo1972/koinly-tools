@@ -3,6 +3,7 @@ window.KoinlyGuida = '' +
 '<h2>Guida: come funziona Koinly Tools</h2>' +
 '<p class="lead">Koinly Tools prepara i conteggi sulle cripto-attività per la dichiarazione dei redditi a partire dai report di Koinly: giorni e periodi di detenzione, imposta sul valore delle cripto-attività (IVACA), quadri RW e RT, eventuali sanzioni con il ravvedimento e il modello F24.</p>' +
 
+'<div class="banner beta-avviso"><strong>Versione beta</strong><p>Il programma è in fase di test: i conteggi vanno sempre verificati con lo studio.</p></div>' +
 '<div class="banner"><strong>Riservatezza</strong><p>I file che caricate restano sul vostro computer: il programma li legge nel browser e non li salva né li invia in rete. Chiudendo la pagina i dati spariscono.</p></div>' +
 
 '<div class="panel"><h3 style="margin-top:0">1. Quali file servono</h3>' +
