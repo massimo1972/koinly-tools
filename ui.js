@@ -346,15 +346,20 @@
     return "Koinly Tools è un programma a codice aperto (open source)" + (st.codiceSorgente ? ': il codice è pubblicato su <a href="' + esc(st.codiceSorgente) + '" target="_blank" rel="noopener">' + esc(st.codiceSorgente.replace(/^https?:\/\//, "")) + "</a>" : "") +
       ". Si mantiene con le donazioni in bitcoin su Lightning Network" + (st.donazioniLightning ? ": <b>" + esc(st.donazioniLightning) + "</b>" : "") + ". Grazie a chi contribuisce.";
   }
+  /* frase sulle donazioni con il QR code Lightning (verificato: punta a moderncelery862@walletofsatoshi.com) */
+  function donazioni() {
+    var st = window.KoinlyStudio || {};
+    return '<div class="donazioni-box">' + (st.donazioniLightning ? '<img src="img/qr-lightning.png" width="140" height="140" alt="QR code per donazioni in bitcoin su Lightning Network a ' + esc(st.donazioniLightning) + '">' : "") + '<p class="donazioni">' + progetto() + "</p></div>";
+  }
   function viewGuida() {
     return '<div class="toolbar noprint" style="justify-content:flex-end;margin-bottom:10px"><button type="button" class="btn gold" id="stampaGuida">Stampa / PDF della guida</button></div>' + (window.KoinlyGuida || "") + contattiStudio() +
-      '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Codice aperto e donazioni</h3><p class="donazioni">' + progetto() + "</p></div>";
+      '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Codice aperto e donazioni</h3>' + donazioni() + "</div>";
   }
   function render() {
     nav();
     var aperto = document.getElementById("spam"); if (aperto) S.spamAperti = aperto.open;
     app.innerHTML = (S.tab === 0 ? viewIvaca() : S.tab === 1 ? viewSanzioni() : S.tab === 2 ? viewModelli() : viewGuida()) +
-      '<footer class="piede noprint"><p class="donazioni">' + progetto() + "</p></footer>";
+      '<footer class="piede noprint">' + donazioni() + "</footer>";
   }
 
   /* ---------- Excel ---------- */
@@ -461,7 +466,7 @@
     else if (t.id === "aggiungiAnno") { nuovoAnno(); render(); }
     else if (t.id === "stampaSanz") stampaSanzioni();
     else if (t.id === "stampaRW") stampaRW();
-    else if (t.id === "stampaGuida") apriStampa(intestazione("Koinly Tools · guida per il cliente") + (window.KoinlyGuida || "").replace(/^<h2>[^<]*<\/h2>/, "") + contattiStudio() + '<p class="donazioni">' + progetto() + "</p>");
+    else if (t.id === "stampaGuida") apriStampa(intestazione("Koinly Tools · guida per il cliente") + (window.KoinlyGuida || "").replace(/^<h2>[^<]*<\/h2>/, "") + contattiStudio() + donazioni());
     else if (t.matches("[data-tab]")) { S.tab = +t.getAttribute("data-tab"); render(); window.scrollTo(0, 0); }
     else if (t.id === "stampaRT") stampaRT();
     else if (t.id === "stampaF24") stampaF24();

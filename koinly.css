@@ -26,6 +26,9 @@ table.periodi{font-size:.8rem;margin:6px 0 4px}
 .u{font-family:var(--f-body);font-size:.75em;color:var(--ink-2)}
 .piede{margin-top:28px;padding-top:10px;border-top:1px solid var(--line)}
 .banner .btnlink{color:var(--gold);font-weight:600}
+.donazioni-box{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.donazioni-box img{background:#fff;border-radius:8px;padding:4px;flex:0 0 auto}
+.donazioni-box .donazioni{flex:1 1 260px;min-width:0}
 .donazioni{font-size:1.15rem;font-weight:600;line-height:1.45;color:#b85600;margin:0}
 .donazioni b{color:inherit}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .donazioni{color:#f7931a}}
@@ -65,6 +68,8 @@ table.periodi{font-size:.8rem;margin:6px 0 4px}
   #resoconto .panel{border:0;padding:0;margin-top:10px}
   #resoconto .banner{border:1px solid #a8822f;padding:6px 8px;margin:8px 0}
   #resoconto ol,#resoconto ul{margin:4px 0 4px 18px;padding:0}
+  #resoconto .donazioni-box{margin-top:12px;break-inside:avoid}
+  #resoconto .donazioni-box img{width:32mm;height:32mm}
   #resoconto .donazioni{font-size:11pt;color:#b85600;margin-top:12px}
   #resoconto .nota{font-size:7.5pt;color:#444}
   #resoconto .avvisi li.hi{color:#b42318}
