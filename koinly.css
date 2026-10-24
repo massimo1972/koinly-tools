@@ -54,6 +54,8 @@ table.periodi{font-size:.8rem;margin:6px 0 4px}
   #resoconto tr.tot td{font-weight:700;border-top:1.5px solid #000}
   #resoconto thead{display:table-header-group}
   #resoconto tr{break-inside:avoid}
+  #resoconto table.rw{font-size:7pt}
+  #resoconto .u{font-size:6.5pt;color:#555}
   #resoconto .nota{font-size:7.5pt;color:#444}
   #resoconto .avvisi li.hi{color:#b42318}
   body:not(.in-stampa) header.band nav,body:not(.in-stampa) .toolbar,body:not(.in-stampa) .slots,body:not(.in-stampa) .noprint{display:none!important}
