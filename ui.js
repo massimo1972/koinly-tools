@@ -349,7 +349,7 @@
   /* frase sulle donazioni con il QR code Lightning (verificato: punta a moderncelery862@walletofsatoshi.com) */
   function donazioni() {
     var st = window.KoinlyStudio || {};
-    return '<div class="donazioni-box">' + (st.donazioniLightning ? '<img src="img/qr-lightning.png" width="140" height="140" alt="QR code per donazioni in bitcoin su Lightning Network a ' + esc(st.donazioniLightning) + '">' : "") + '<p class="donazioni">' + progetto() + "</p></div>";
+    return '<div class="donazioni-box"><p class="donazioni">' + progetto() + "</p>" + (st.donazioniLightning ? '<img src="img/qr-lightning.png" width="160" height="160" alt="QR code per donazioni in bitcoin su Lightning Network a ' + esc(st.donazioniLightning) + '">' : "") + "</div>";
   }
   function viewGuida() {
     return '<div class="toolbar noprint" style="justify-content:flex-end;margin-bottom:10px"><button type="button" class="btn gold" id="stampaGuida">Stampa / PDF della guida</button></div>' + (window.KoinlyGuida || "") + contattiStudio() +
