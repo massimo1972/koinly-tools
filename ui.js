@@ -1,7 +1,7 @@
 /* Koinly Tools · interfaccia. I file caricati restano nel browser: non vengono salvati né inviati in rete. */
 (function () {
   "use strict";
-  var L = window.KoinlyLettura, D = window.KoinlyDetenzione, I = window.KoinlyIvaca;
+  var L = window.KoinlyLettura, D = window.KoinlyDetenzione, I = window.KoinlyIvaca, Z = window.KoinlySanzioni;
   if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = "comune/vendor/pdf.worker.min.js";
   var app = document.getElementById("app");
 
@@ -163,8 +163,87 @@
       (spam.length ? '<div class="panel"><details' + (S.spamAperti ? " open" : "") + ' id="spam"><summary>Token sospetti esclusi (' + spam.length + ")</summary><div class=\"scroll\"><table class=\"det\">" + testa + "<tbody>" + righeTabella(spam) + "</tbody></table></div></details></div>" : "") +
       "</div>";
   }
+  /* ---------- sanzioni RW e RT ---------- */
+  var oggiIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  S.sanz = { pagamento: oggiIso, anni: [], errore: {} };
+  var idAnno = 0;
+  function nuovoAnno() {
+    var usati = S.sanz.anni.map(function (a) { return a.anno; }), anno = 2025;
+    while (usati.indexOf(anno) >= 0 && anno > 2019) anno--;
+    S.sanz.anni.push({ id: ++idAnno, anno: anno, stato: "presentata", nome: null, valoreRw: "", ivaca: "", plusvalenze: "", redditi: null, fonte: {} });
+    S.sanz.anni.sort(function (a, b) { return a.anno - b.anno; });
+  }
+  async function caricaReportAnno(id, f) {
+    var a = S.sanz.anni.filter(function (x) { return x.id === id; })[0]; S.sanz.errore[id] = null;
+    try {
+      var r = /\.pdf$/i.test(f.name) ? L.leggiPdf(await testoPdf(f)) : L.leggiCsv(await f.text());
+      if (r.errore) throw new Error(r.errore);
+      if (r.tipoSaldi === "inizio") throw new Error("Serve il report dei saldi di fine anno (o il Complete tax report), non quello di inizio anno.");
+      a.nome = f.name; if (r.anno) a.anno = r.anno;
+      a.valoreRw = Math.round(r.valoreCripto * 100) / 100; a.fonte.valoreRw = "report";
+      if (r.plusvalenze && r.plusvalenze.netto != null) { a.plusvalenze = r.plusvalenze.netto; a.fonte.plusvalenze = "report"; }
+      a.redditi = r.redditi ? r.redditi.totale : null;
+      a.avvisi = r.avvisi;
+    } catch (e) { S.sanz.errore[id] = e.message || String(e); }
+    render();
+  }
+  function ivacaDisponibile(anno) { return ivaca && S.anno === anno ? ivaca.totali.ivaca : null; }
+  function calcoliSanzioni() {
+    return S.sanz.anni.map(function (a) {
+      var r = Z.calcolaAnno({ anno: a.anno, stato: a.stato, valoreRw: +a.valoreRw || 0, ivaca: +a.ivaca || 0, plusvalenze: +a.plusvalenze || 0, pagamento: S.sanz.pagamento });
+      r.dati = a; return r;
+    });
+  }
+  function tabellaAnno(r) {
+    var righe = r.voci.filter(function (v) { return v.imposta || v.sanzione || v.interessi; }).map(function (v) {
+      return "<tr><td>" + esc(v.voce) + '</td><td class="n">' + (v.imposta ? E(v.imposta) : "–") + '</td><td class="n">' + (v.sanzione != null ? E(v.sanzione) : "–") + '</td><td class="n">' + (v.interessi ? E(v.interessi) : "–") + "</td></tr>";
+    }).join("");
+    var tot = r.ravvedibile
+      ? '<tr class="tot"><td>Totale da versare con il ravvedimento</td><td class="n">' + E(r.imposte) + '</td><td class="n">' + E(r.sanzioni) + '</td><td class="n">' + E(r.interessi) + '</td></tr><tr class="tot"><td colspan="3">Totale</td><td class="n">' + E(r.totale) + "</td></tr>"
+      : '<tr class="tot"><td>Sanzioni minime per omessa dichiarazione</td><td></td><td class="n">' + E(r.sanzionePiena) + '</td><td></td></tr><tr class="tot"><td>Sanzioni ridotte a 1/3 (definizione dopo la contestazione)</td><td></td><td class="n">' + E(r.sanzioneUnTerzo) + '</td><td></td></tr><tr class="tot"><td colspan="3">Totale indicativo con imposte e interessi</td><td class="n">' + E(r.totale) + "</td></tr>";
+    return '<table class="det"><thead><tr><th>Voce</th><th class="n">Imposta</th><th class="n">Sanzione</th><th class="n">Interessi</th></tr></thead><tbody>' + righe + tot + "</tbody></table>" +
+      '<p class="small" style="margin:6px 0 0">Scadenze ' + r.anno + ": dichiarazione " + D.it(r.termini.dichiarazione) + ", saldo " + D.it(r.termini.saldo) + " · " + (r.regime === "nuovo" ? "violazione dal 1/9/2024: art. 13 D.Lgs. 472/1997 e art. 1 D.Lgs. 471/1997 nel testo del D.Lgs. 87/2024" : "violazione fino al 31/8/2024: testo previgente") +
+      ". RT: plusvalenze " + E(r.rt.plusvalenze) + (r.rt.franchigia ? " − franchigia " + E(r.rt.franchigia, 0) : "") + " × " + Math.round(r.rt.aliquota * 100) + "%. " + esc(r.rt.nota) + "</p>" +
+      (r.note.length ? '<ul class="avvisi" style="margin-top:6px">' + r.note.map(function (n) { return '<li class="' + (/non è tecnicamente possibile|contestata/.test(n) ? "hi" : "") + '">' + esc(n) + "</li>"; }).join("") + "</ul>" : "");
+  }
   function viewSanzioni() {
-    return '<h2>Sanzioni RW e RT</h2><p class="lead">In preparazione: calcolo delle sanzioni e del ravvedimento sul valore finale dichiarato (RW) e sulle plusvalenze (RT), dai report Koinly.</p>';
+    var Sz = S.sanz, calc = calcoliSanzioni();
+    var h = '<h2>Sanzioni RW e RT</h2><p class="lead">Ravvedimento per cripto-attività non indicate nei quadri RW e RT: per ogni anno si applica la norma vigente quando la violazione è stata commessa (testo previgente o D.Lgs. 87/2024) e la riduzione che spetta alla data in cui si ravvede.</p>' +
+      '<div class="panel"><div class="grid2"><label class="f"><span class="t">Data del ravvedimento (pagamento)</span><input type="date" data-sz="pagamento" value="' + esc(Sz.pagamento) + '"><span class="small">Determina la riduzione delle sanzioni e i giorni di interessi.</span></label>' +
+      '<div class="f"><span class="t">Anni da ravvedere</span><div class="toolbar"><button type="button" class="btn" id="aggiungiAnno">Aggiungi un anno</button>' + (calc.length ? '<button type="button" class="btn gold" id="stampaSanz">Stampa / PDF</button>' : "") + "</div></div></div></div>";
+    if (!calc.length) return h + '<p class="muted" style="margin-top:14px">Aggiungete un anno e caricate il «Complete tax report» Koinly di quell\'anno (o il report dei saldi di fine anno): valore finale e plusvalenze si compilano da lì.</p>';
+    h += calc.map(function (r) {
+      var a = r.dati, err = Sz.errore[a.id], ivDisp = ivacaDisponibile(a.anno);
+      return '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Anno ' + a.anno + '</h3><button type="button" class="btnlink small" data-toglianno="' + a.id + '">Togli l\'anno</button></div>' +
+        '<div class="grid2" style="margin-top:10px">' +
+        '<label class="f"><span class="t">Anno d\'imposta</span><select data-za="' + a.id + '" data-k="anno">' + [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map(function (y) { return "<option" + (y === a.anno ? " selected" : "") + ">" + y + "</option>"; }).join("") + "</select></label>" +
+        '<label class="f"><span class="t">Dichiarazione dei redditi</span><select data-za="' + a.id + '" data-k="stato"><option value="presentata"' + (a.stato === "presentata" ? " selected" : "") + '>Presentata senza RW/RT (si integra)</option><option value="omessa"' + (a.stato === "omessa" ? " selected" : "") + ">Omessa: non presentata, neanche per altri redditi</option></select></label>" +
+        '<label class="f"><span class="t">Report Koinly dell\'anno</span><input type="file" accept=".pdf,.csv" data-zfile="' + a.id + '"><span class="small">' + (err ? '<span style="color:var(--hi)">' + esc(err) + "</span>" : a.nome ? esc(a.nome) : "Complete tax report (PDF) o End of year holdings (CSV)") + "</span></label>" +
+        '<label class="f"><span class="t">Valore finale non dichiarato in RW <span class="muted small">(€)</span></span><input class="num" type="number" step="any" data-za="' + a.id + '" data-k="valoreRw" value="' + esc(a.valoreRw) + '"><span class="small">' + (a.fonte.valoreRw === "report" ? "Valore delle cripto al 31/12 dal report Koinly; modificabile (per esempio aggiungendo le cripto vendute nell'anno, al valore di fine detenzione)." : "Base della sanzione RW: valore finale delle cripto non dichiarate.") + "</span></label>" +
+        '<label class="f"><span class="t">IVACA dovuta <span class="muted small">(€)</span></span><input class="num" type="number" step="any" data-za="' + a.id + '" data-k="ivaca" value="' + esc(a.anno < 2023 ? "" : a.ivaca) + '"' + (a.anno < 2023 ? " disabled" : "") + '><span class="small">' + (a.anno < 2023 ? "Non dovuta prima del 2023." : ivDisp != null ? '<button type="button" class="btnlink" data-usaivaca="' + a.id + '">Usa l\'IVACA calcolata nella prima pagina: ' + E(ivDisp) + "</button>" : "Dalla prima pagina (giorni di detenzione) per lo stesso anno, o a mano.") + "</span></label>" +
+        '<label class="f"><span class="t">Plusvalenze nette RT <span class="muted small">(€)</span></span><input class="num" type="number" step="any" data-za="' + a.id + '" data-k="plusvalenze" value="' + esc(a.plusvalenze) + '"><span class="small">' + (a.fonte.plusvalenze === "report" ? "«Ricavi netti» del riepilogo plusvalenze Koinly: dato non rettificato con i criteri dello studio." : "Plusvalenze meno minusvalenze dell'anno.") + (a.redditi ? " Il report indica anche " + E(a.redditi) + " di altri redditi (interessi, reward, airdrop) non compresi: valutarne la qualificazione." : "") + "</span></label>" +
+        "</div>" + (a.avvisi && a.avvisi.length ? '<p class="small" style="color:var(--mid)">' + a.avvisi.map(esc).join("<br>") + "</p>" : "") +
+        '<div class="scroll" style="margin-top:10px">' + tabellaAnno(r) + "</div></div>";
+    }).join("");
+    var tot = calc.reduce(function (s, r) { return s + (r.totale || 0); }, 0), omesse = calc.filter(function (r) { return !r.ravvedibile; });
+    h += '<div class="cards" style="margin-top:14px"><div class="card hl"><div class="k">Totale ravvedimento (imposte, sanzioni, interessi)</div><div class="v">' + E(calc.filter(function (r) { return r.ravvedibile; }).reduce(function (s, r) { return s + r.totale; }, 0)) + "</div></div>" +
+      (omesse.length ? '<div class="card"><div class="k">Anni con dichiarazione omessa: totale indicativo con sanzioni a 1/3</div><div class="v">' + E(omesse.reduce(function (s, r) { return s + r.totale; }, 0)) + "</div></div>" : "") + "</div>" +
+      '<p class="metodi">Sanzione RW: 3% (minimo) del valore non dichiarato, art. 5 c. 2 DL 167/1990, ridotta con il ravvedimento. Imposte (IVACA e RT): sanzione per infedele dichiarazione ridotta, che assorbe quella per omesso versamento (circ. 42/E/2016), più interessi legali giorno per giorno dalla scadenza del saldo. Il ravvedimento è precluso dalla notifica di atti di liquidazione o accertamento (art. 13 c. 1-ter D.Lgs. 472/1997). Dal 1/1/2027 entra in vigore il Testo unico sanzioni (D.Lgs. 173/2024).</p>';
+    return h;
+  }
+  function stampaSanzioni() {
+    var calc = calcoliSanzioni();
+    var h = intestazione("Ravvedimento cripto-attività · quadri RW e RT") +
+      '<table class="dati"><tr><td>Data del ravvedimento</td><td>' + D.it(S.sanz.pagamento) + "</td></tr><tr><td>Anni</td><td>" + calc.map(function (r) { return r.anno + (r.ravvedibile ? "" : " (dichiarazione omessa)"); }).join(", ") + "</td></tr></table>" +
+      calc.map(function (r) {
+        var a = r.dati;
+        return "<h2>Anno " + r.anno + "</h2><p>Dichiarazione: " + (a.stato === "omessa" ? "omessa" : "presentata senza quadri RW e RT") + (a.nome ? " · Report Koinly: " + esc(a.nome) : "") + " · Valore finale RW: " + E(+a.valoreRw || 0) + " · IVACA: " + E(r.anno < 2023 ? 0 : +a.ivaca || 0) + " · Plusvalenze: " + E(+a.plusvalenze || 0) + "</p>" + tabellaAnno(r);
+      }).join("") +
+      "<h2>Riepilogo</h2><table class=\"det\"><thead><tr><th>Anno</th><th class=\"n\">Imposte</th><th class=\"n\">Sanzioni</th><th class=\"n\">Interessi</th><th class=\"n\">Totale</th></tr></thead><tbody>" +
+      calc.map(function (r) { return "<tr><td>" + r.anno + (r.ravvedibile ? "" : " (omessa: sanzioni a 1/3, indicativo)") + '</td><td class="n">' + E(r.imposte) + '</td><td class="n">' + E(r.sanzioni) + '</td><td class="n">' + E(r.interessi) + '</td><td class="n">' + E(r.totale) + "</td></tr>"; }).join("") +
+      '<tr class="tot"><td>Totale</td><td class="n">' + E(calc.reduce(function (s, r) { return s + r.imposte; }, 0)) + '</td><td class="n">' + E(calc.reduce(function (s, r) { return s + r.sanzioni; }, 0)) + '</td><td class="n">' + E(calc.reduce(function (s, r) { return s + r.interessi; }, 0)) + '</td><td class="n">' + E(calc.reduce(function (s, r) { return s + r.totale; }, 0)) + "</td></tr></tbody></table>" +
+      '<p class="nota">Norme applicate (testi letti su Normattiva): art. 13 D.Lgs. 472/1997 (ravvedimento), art. 1 e art. 13 D.Lgs. 471/1997, art. 5 c. 2 DL 167/1990, art. 19 cc. 18-21 DL 201/2011, art. 67 c. 1 lett. c-sexies TUIR. Per le violazioni dal 1/9/2024 il testo modificato dal D.Lgs. 87/2024. Interessi al tasso legale di ciascun anno. Valori e plusvalenze ai dati Koinly, non rettificati. Stima da verificare: non sostituisce il parere del professionista.</p>' + firma();
+    apriStampa(h);
   }
   function render() {
     nav();
@@ -206,15 +285,29 @@
     document.body.appendChild(link); link.click(); setTimeout(function () { URL.revokeObjectURL(link.href); link.remove(); }, 1000);
   }
 
+  /* intestazione dello studio e titolo, per tutti i resoconti stampati */
+  function intestazione(titolo) {
+    var st = window.KoinlyStudio || {}, oggi = new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" });
+    var unisci = function (v) { return v.filter(Boolean).map(esc).join(" · "); };
+    return '<div class="studio"><div><b>' + esc(st.professionista) + "</b><br><span>" + esc(st.qualifica) + "</span></div>" +
+      '<div class="contatti">' + [esc(st.indirizzo || ""), unisci([st.telefono && "Tel. " + st.telefono, st.email && "mail: " + st.email]), unisci([st.sito, st.partitaIva && "P.IVA " + st.partitaIva])].filter(Boolean).join("<br>") + "</div></div>" +
+      '<div class="testata"><h1>' + esc(titolo) + "</h1><p>Firenze, " + esc(oggi) + "</p></div>";
+  }
+  function firma() { var st = window.KoinlyStudio || {}; return '<p class="firma">Elaborazione a cura del ' + esc(st.professionista) + "</p>"; }
+  function apriStampa(h) {
+    var box = document.getElementById("resoconto") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "resoconto" }));
+    box.innerHTML = h;
+    document.body.classList.add("in-stampa");
+    var fine = function () { document.body.classList.remove("in-stampa"); window.removeEventListener("afterprint", fine); };
+    window.addEventListener("afterprint", fine);
+    window.print();
+  }
+
   /* ---------- resoconto da stampare o salvare in PDF: riepilogo e tutti i periodi di ogni cripto ---------- */
   function stampa() {
     var iv = ivaca, righe = iv.righe.filter(function (r) { return r.incluso; });
-    var oggi = new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" });
     var st = window.KoinlyStudio || {};
-    var unisci = function (v) { return v.filter(Boolean).map(esc).join(" · "); };
-    var h = '<div class="studio"><div><b>' + esc(st.professionista) + "</b><br><span>" + esc(st.qualifica) + "</span></div>" +
-      '<div class="contatti">' + [esc(st.indirizzo || ""), unisci([st.telefono && "Tel. " + st.telefono, st.email && "mail: " + st.email]), unisci([st.sito, st.partitaIva && "P.IVA " + st.partitaIva])].filter(Boolean).join("<br>") + "</div></div>" +
-      '<div class="testata"><h1>Giorni di detenzione e IVACA ' + S.anno + "</h1><p>Firenze, " + esc(oggi) + "</p></div>" +
+    var h = intestazione("Giorni di detenzione e IVACA " + S.anno) +
       '<table class="dati"><tr><td>Transazioni</td><td>' + esc(S.tx.nome) + " (" + S.tx.dati.movimenti.length.toLocaleString("it-IT") + " righe; " + calcolo.transazioniAnno.toLocaleString("it-IT") + " nell'anno)</td></tr>" +
       "<tr><td>Saldi a inizio anno</td><td>" + esc(S.inizio.nome) + "</td></tr><tr><td>Saldi a fine anno</td><td>" + esc(S.fine.nome) + "</td></tr>" +
       "<tr><td>Fuso orario delle date</td><td>" + (calcolo.fuso === "UTC" ? "UTC" : "ora italiana") + "</td></tr><tr><td>Quota di possesso</td><td>" + Math.round(iv.quota * 10000) / 100 + "%</td></tr></table>" +
@@ -230,13 +323,8 @@
           "</tbody></table>" + (r.note.length ? '<p class="nota">' + r.note.map(esc).join(" · ") + "</p>" : "");
       }).join("") +
       '<p class="nota">Valori ai prezzi Koinly: dal controvalore in euro delle transazioni e, per i periodi che iniziano il 1/1 o finiscono il 31/12, dai report dei saldi. * prezzo stimato con l\'ultimo noto · ✎ valore inserito a mano. Il calcolo somma tutti i wallet; la circolare 30/E chiede un rigo RW per portafoglio. Stima da verificare: non sostituisce il parere del professionista.</p>' +
-      '<p class="firma">Elaborazione a cura del ' + esc(st.professionista) + "</p>";
-    var box = document.getElementById("resoconto") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "resoconto" }));
-    box.innerHTML = h;
-    document.body.classList.add("in-stampa");
-    var fine = function () { document.body.classList.remove("in-stampa"); window.removeEventListener("afterprint", fine); };
-    window.addEventListener("afterprint", fine);
-    window.print();
+      firma();
+    apriStampa(h);
   }
 
   /* ---------- eventi ---------- */
@@ -246,6 +334,14 @@
     if (t.matches("input[type=file][data-slot]") && t.files[0]) { carica(t.getAttribute("data-slot"), t.files[0]); return; }
     if (t.matches("[data-incl]")) { S.inclusi[t.getAttribute("data-incl")] = t.checked; ricalcola(); render(); return; }
     if (t.matches("[data-val]")) { var k = t.getAttribute("data-val"); S.valori[k] = t.value === "" ? null : +t.value; ricalcola(); render(); return; }
+    if (t.matches("[data-sz]")) { S.sanz[t.getAttribute("data-sz")] = t.value || oggiIso; render(); return; }
+    if (t.matches("[data-zfile]") && t.files[0]) { caricaReportAnno(+t.getAttribute("data-zfile"), t.files[0]); return; }
+    if (t.matches("[data-za]")) {
+      var za = S.sanz.anni.filter(function (x) { return x.id === +t.getAttribute("data-za"); })[0], zk = t.getAttribute("data-k");
+      za[zk] = zk === "anno" ? +t.value : zk === "stato" ? t.value : t.value === "" ? "" : +t.value; if (zk !== "anno" && zk !== "stato") za.fonte[zk] = "mano";
+      if (zk === "anno") S.sanz.anni.sort(function (a, b) { return a.anno - b.anno; });
+      render(); return;
+    }
     if (t.matches("[data-k]")) { var key = t.getAttribute("data-k"); S[key] = key === "anno" ? +t.value : key === "quota" ? +t.value : t.value; if (key === "anno") { S.inclusi = {}; S.valori = {}; } ricalcola(); render(); }
   });
   app.addEventListener("click", function (e) {
@@ -254,6 +350,10 @@
     else if (t.matches("[data-togli]")) { var s = t.getAttribute("data-togli"); S[s] = null; S.errore[s] = null; if (s === "tx") S.anno = null; scegliAnno(); ricalcola(); render(); }
     else if (t.id === "excel") excel();
     else if (t.id === "stampa") stampa();
+    else if (t.id === "aggiungiAnno") { nuovoAnno(); render(); }
+    else if (t.id === "stampaSanz") stampaSanzioni();
+    else if (t.matches("[data-toglianno]")) { var id = +t.getAttribute("data-toglianno"); S.sanz.anni = S.sanz.anni.filter(function (x) { return x.id !== id; }); render(); }
+    else if (t.matches("[data-usaivaca]")) { var ya = S.sanz.anni.filter(function (x) { return x.id === +t.getAttribute("data-usaivaca"); })[0]; ya.ivaca = Math.round(ivaca.totali.ivaca * 100) / 100; ya.fonte.ivaca = "calcolo"; render(); }
   });
   render();
 })();

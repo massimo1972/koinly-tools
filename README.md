@@ -26,7 +26,17 @@ Uscite: tabella a video con i periodi; Excel (fogli «Righi RW» e «Riepilogo p
 
 ## 2. Sanzioni RW e RT
 
-In preparazione. Fonti raccolte in [docs/FONTI.md](docs/FONTI.md).
+Per ogni anno da ravvedere:
+
+- **Dati:** si carica il «Complete tax report» Koinly (PDF) o i saldi di fine anno (CSV). Il valore finale per l'RW e le plusvalenze nette si compilano da lì e sono modificabili. L'IVACA si prende dalla prima pagina per lo stesso anno.
+- **Norma applicabile:** quella vigente quando la violazione è commessa. L'infedele dichiarazione si considera commessa alla scadenza della dichiarazione, l'omesso versamento alla scadenza del saldo. Per le violazioni dal 1/9/2024 vale il testo modificato dal D.Lgs. 87/2024.
+- **RW:** 3% minimo (art. 5 c. 2 DL 167/1990) × frazione di ravvedimento (art. 13 D.Lgs. 472/1997).
+- **IVACA e RT, dichiarazione presentata:** si integra. Sanzione per infedele: previgente 90%; dal 1/9/2024 50% (art. 1 c. 2-bis D.Lgs. 471/1997). Si riduce con la frazione e assorbe l'omesso versamento. Interessi legali giorno per giorno dalla scadenza del saldo.
+- **IVACA prima del 2023:** non dovuta; resta la sanzione per omesso monitoraggio RW.
+- **Termine della dichiarazione non ancora scaduto:** solo omesso versamento del saldo (25% o 30%, ridotto).
+- **Dichiarazione omessa** (nulla presentato, neanche per altri redditi): ravvedimento non possibile oltre 90 giorni. Si mostrano sanzioni minime e definizione a 1/3, con l'indicazione di attendere la contestazione dell'Agenzia e non pagare in autonomia. Entro 90 giorni vale come tardiva (1/10 di 250 €).
+
+Fonti in [docs/FONTI.md](docs/FONTI.md).
 
 ## File
 
@@ -36,6 +46,8 @@ In preparazione. Fonti raccolte in [docs/FONTI.md](docs/FONTI.md).
 | `lettura.js` | Lettura dei report di saldi Koinly (CSV e PDF, italiano e inglese) |
 | `detenzione.js` | Transazioni, giorni di detenzione, periodi, token sospetti, riscontri |
 | `ivaca.js` | Valori dei periodi e imposta |
+| `sanzioni.js` | Sanzioni, frazioni di ravvedimento, interessi legali, scadenze per anno |
+| `studio.js` | Dati dello studio per la stampa |
 | `xlsx-mini.js` | Scrittura dei file Excel senza librerie |
 | `comune/` | Grafica, caratteri, pdf.js 3.11.174 e lettura dei PDF (da strumenti-lumes) |
 
@@ -43,6 +55,7 @@ In preparazione. Fonti raccolte in [docs/FONTI.md](docs/FONTI.md).
 
 ```bash
 node test/detenzione.test.js
+node test/sanzioni.test.js
 ```
 
 I dati delle prove sono inventati. I file reali dei clienti vanno solo nella cartella `campioni/`, esclusa da Git.
