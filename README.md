@@ -85,7 +85,8 @@ Scheda «Guida» per il cliente (`guida.js`): quali file Koinly scaricare, come 
 | `guida.js` | Testo della guida per il cliente |
 | `modelli.js` | Quadri RW e RT del modello Redditi PF e modello F24 |
 | `xlsx-mini.js` | Scrittura dei file Excel senza librerie |
-| `comune/` | Grafica, caratteri, pdf.js 3.11.174 e lettura dei PDF (da strumenti-lumes) |
+| `comune/` | Grafica, caratteri, pdf.js 3.11.174 e lettura dei PDF |
+| `img/` | Icone e logo Studio ME, immagine di anteprima dei link, QR code delle donazioni |
 
 ## Prove
 
@@ -111,4 +112,4 @@ Esclusioni:
 |---|---|
 | `comune/vendor/` (pdf.js) | Apache 2.0, dei rispettivi autori |
 | `comune/fonts/` (Source Sans 3, Source Serif 4, IBM Plex Mono) | SIL Open Font License |
-| Dati e recapiti dello studio in `studio.js`, QR code delle donazioni in `img/` | Non coperti dalla licenza e non riutilizzabili: chi riusa il programma deve inserire i propri |
+| Dati e recapiti dello studio in `studio.js`, logo e icone Studio ME, immagine di anteprima e QR code delle donazioni in `img/` | Non coperti dalla licenza e non riutilizzabili: chi riusa il programma deve inserire i propri |
