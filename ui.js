@@ -139,8 +139,8 @@
       if (aperto) tr += '<tr><td></td><td colspan="12"><table class="det periodi"><thead><tr><th>Inizio detenzione</th><th>Fine detenzione</th><th class="n">Giorni</th><th class="n">Quantità</th><th class="n">Valore iniziale</th><th class="n">Valore finale</th><th class="n">IVACA</th></tr></thead><tbody>' +
         r.periodi.map(function (p) {
           return "<tr><td>" + it(p.dal) + "</td><td>" + it(p.al) + '</td><td class="n">' + p.giorni + '</td><td class="n">' + QU(p.quantita, r) +
-            '</td><td class="n">' + E(p.valoreIniziale) + fonte(p.fonteIniziale) + '</td><td class="n">' + E(p.valore) + fonte(p.fonteFinale) + '</td><td class="n">' + E(p.ivaca) + "</td></tr>";
-        }).join("") + '</tbody></table><p class="small muted" style="margin:0">Valori al prezzo del giorno di inizio e di fine detenzione, dal controvalore in euro delle transazioni Koinly; dai report Koinly per i periodi che iniziano il 1/1 o finiscono il 31/12, se caricati. * prezzo stimato (ultimo noto) · ✎ inserito a mano.</p></td></tr>';
+            '</td><td class="n">' + E(p.valoreIniziale) + fonte(p.fonteIniziale) + '</td><td class="n">' + E(p.valore) + fonte(p.fonteFinale) + '</td><td class="n">' + E(p.ivaca, 4) + "</td></tr>";
+        }).join("") + '<tr class="tot"><td>Totale</td><td></td><td class="n">' + r.periodi.reduce(function (a, p) { return a + p.giorni; }, 0) + '</td><td colspan="3"></td><td class="n">' + E(r.ivaca) + "</td></tr>" + '</tbody></table><p class="small muted" style="margin:0">Valori al prezzo del giorno di inizio e di fine detenzione, dal controvalore in euro delle transazioni Koinly; dai report Koinly per i periodi che iniziano il 1/1 o finiscono il 31/12, se caricati. * prezzo stimato (ultimo noto) · ✎ inserito a mano.</p></td></tr>';
       return tr;
     }).join("");
   }
@@ -222,7 +222,7 @@
       (iv.totali.ivaca <= I.PARAMETRI.sogliaVersamento ? "<p>L'imposta non supera 12 €: non si versa.</p>" : "") +
       righe.map(function (r) {
         return '<h2 class="cripto">' + esc(r.nome) + " — " + r.periodi.length + (r.periodi.length === 1 ? " periodo" : " periodi") + ", IVACA " + E(r.ivaca) + '</h2><table class="det"><thead><tr><th>Inizio detenzione</th><th>Fine detenzione</th><th class="n">Giorni</th><th class="n">Quantità</th><th class="n">Valore iniziale</th><th class="n">Valore finale</th><th class="n">IVACA</th></tr></thead><tbody>' +
-          r.periodi.map(function (p) { return "<tr><td>" + it(p.dal) + "</td><td>" + it(p.al) + '</td><td class="n">' + p.giorni + '</td><td class="n">' + QU(p.quantita, r) + '</td><td class="n">' + E(p.valoreIniziale) + fonte(p.fonteIniziale) + '</td><td class="n">' + E(p.valore) + fonte(p.fonteFinale) + '</td><td class="n">' + E(p.ivaca) + "</td></tr>"; }).join("") +
+          r.periodi.map(function (p) { return "<tr><td>" + it(p.dal) + "</td><td>" + it(p.al) + '</td><td class="n">' + p.giorni + '</td><td class="n">' + QU(p.quantita, r) + '</td><td class="n">' + E(p.valoreIniziale) + fonte(p.fonteIniziale) + '</td><td class="n">' + E(p.valore) + fonte(p.fonteFinale) + '</td><td class="n">' + E(p.ivaca, 4) + "</td></tr>"; }).join("") + '<tr class="tot"><td>Totale</td><td></td><td class="n">' + r.periodi.reduce(function (a, p) { return a + p.giorni; }, 0) + '</td><td colspan="3"></td><td class="n">' + E(r.ivaca) + "</td></tr>" +
           "</tbody></table>" + (r.note.length ? '<p class="nota">' + r.note.map(esc).join(" · ") + "</p>" : "");
       }).join("") +
       '<p class="nota">Valori ai prezzi Koinly: dal controvalore in euro delle transazioni e, per i periodi che iniziano il 1/1 o finiscono il 31/12, dai report dei saldi. * prezzo stimato con l\'ultimo noto · ✎ valore inserito a mano. Il calcolo somma tutti i wallet; la circolare 30/E chiede un rigo RW per portafoglio. Stima da verificare: non sostituisce il parere del professionista.</p>';
