@@ -191,7 +191,7 @@
   }
   function ivacaDisponibile(anno) { return ivaca && S.anno === anno ? ivaca.totali.ivaca : null; }
   /* plusvalenze nette RT = corrispettivi delle vendite − costi di acquisto */
-  function plusvalenzeAnno(a) { return (+a.corrispettivi || 0) - (+a.costi || 0); }
+  function plusvalenzeAnno(a) { return Math.round(+a.corrispettivi || 0) - Math.round(+a.costi || 0); } // in euro, come nei righi del quadro RT
   function calcoliSanzioni() {
     return S.sanz.anni.map(function (a) {
       var r = Z.calcolaAnno({ anno: a.anno, stato: a.stato, valoreRw: +a.valoreRw || 0, ivaca: +a.ivaca || 0, plusvalenze: plusvalenzeAnno(a), pagamento: S.sanz.pagamento });
