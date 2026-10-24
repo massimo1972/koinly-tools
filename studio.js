@@ -9,6 +9,6 @@ window.KoinlyStudio = {
   sito: "",
   partitaIva: "05428060486",
   // progetto: codice aperto e donazioni in bitcoin su Lightning Network (indirizzo da inserire, es. nome@dominio o LNURL)
-  codiceSorgente: "",
+  codiceSorgente: "https://github.com/massimo1972/koinly-tools",
   donazioniLightning: "moderncelery862@walletofsatoshi.com"
 };
