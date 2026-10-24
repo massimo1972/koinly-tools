@@ -12,10 +12,19 @@
   function r2(x) { return Math.round((x || 0) * 100) / 100; }
   function r0(x) { return Math.round(x || 0); } // nel modello gli importi vanno in unità di euro
 
-  /* iv: risultato di KoinlyIvaca.calcola (righe con i periodi); opz: { titolo: 1-4 } */
+  /* iv: risultato di KoinlyIvaca.calcola (righe con i periodi); opz: { titolo: 1-4, sogliaPeriodi: n }
+     Le cripto con più di sogliaPeriodi periodi (per esempio interessi giornalieri) vanno in un rigo unico:
+     col. 7 valore iniziale del primo periodo, col. 8 valore medio ponderato per i giorni, col. 10 giorni complessivi,
+     così l'imposta del rigo è uguale alla somma dei periodi. */
   function quadroRW(iv, opz) {
-    var o = opz || {}, quota = Math.round(iv.quota * 10000) / 100, righi = [];
+    var o = opz || {}, quota = Math.round(iv.quota * 10000) / 100, righi = [], soglia = o.sogliaPeriodi == null ? 20 : o.sogliaPeriodi;
     iv.righe.filter(function (r) { return r.incluso; }).forEach(function (r) {
+      if (soglia > 0 && r.periodi.length > soglia && r.valoreMedio != null) {
+        var g = r.periodi.reduce(function (a, p) { return a + p.giorni; }, 0), ic = r.ivaca || 0;
+        righi.push({ cripto: r.nome, dal: r.periodi[0].dal, al: r.periodi[r.periodi.length - 1].al, quantita: null, aggregato: r.periodi.length, valoreFinale: r.valoreFinale,
+          c1: o.titolo || 1, c3: 21, c4: "", c5: quota, c6: 1, c7: r0(r.periodi[0].valoreIniziale), c8: r0(r.valoreMedio), c10: g, c12: 0, c16: false, c33: ic, c34: ic });
+        return;
+      }
       r.periodi.forEach(function (p) {
         var ic = p.ivaca == null ? 0 : p.ivaca;
         righi.push({ cripto: r.nome, dal: p.dal, al: p.al, quantita: p.quantita,

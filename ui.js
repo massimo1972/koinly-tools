@@ -267,11 +267,11 @@
   }
   /* ---------- quadri del modello Redditi PF e F24 ---------- */
   var TITOLI = { 1: "proprietà", 2: "usufrutto", 3: "nuda proprietà", 4: "altro" };
-  S.modelli = { titolo: 1 };
+  S.modelli = { titolo: 1, sogliaPeriodi: 20 };
   function tabellaRW(q) {
     var testa = '<thead><tr><th>Modulo / rigo</th><th>Cripto · periodo</th><th class="n">Col. 1<br>titolo</th><th class="n">Col. 3<br>codice</th><th class="n">Col. 4<br>Stato</th><th class="n">Col. 5<br>quota %</th><th class="n">Col. 6<br>criterio</th><th class="n">Col. 7<br>valore iniziale</th><th class="n">Col. 8<br>valore finale</th><th class="n">Col. 10<br>giorni</th><th class="n">Col. 12<br>credito</th><th class="n">Col. 16<br>solo monit.</th><th class="n">Col. 33<br>imposta</th><th class="n">Col. 34<br>dovuta</th></tr></thead>';
     var righe = q.righi.map(function (x) {
-      return "<tr><td>" + x.modulo + " / " + x.rigo + "</td><td>" + esc(x.cripto) + ' <span class="u">' + it(x.dal) + "–" + it(x.al) + " · " + Q(x.quantita) + '</span></td><td class="n">' + x.c1 + '</td><td class="n">' + x.c3 + '</td><td class="n">' + (x.c4 || "–") + '</td><td class="n">' + String(x.c5).replace(".", ",") +
+      return "<tr><td>" + x.modulo + " / " + x.rigo + "</td><td>" + esc(x.cripto) + ' <span class="u">' + it(x.dal) + "–" + it(x.al) + " · " + (x.aggregato ? "rigo unico di " + x.aggregato + " periodi: col. 8 valore medio (finale " + E(x.valoreFinale, 0) + ")" : Q(x.quantita)) + '</span></td><td class="n">' + x.c1 + '</td><td class="n">' + x.c3 + '</td><td class="n">' + (x.c4 || "–") + '</td><td class="n">' + String(x.c5).replace(".", ",") +
         '</td><td class="n">' + x.c6 + '</td><td class="n">' + E(x.c7, 0) + '</td><td class="n">' + E(x.c8, 0) + '</td><td class="n">' + x.c10 + '</td><td class="n">' + (x.c12 ? E(x.c12, 0) : "–") + '</td><td class="n">' + (x.c16 ? "X" : "") + '</td><td class="n">' + E(x.c33, x.c33 < 0.01 && x.c33 > 0 ? 4 : 2) + '</td><td class="n">' + E(x.c34, x.c34 < 0.01 && x.c34 > 0 ? 4 : 2) + "</td></tr>";
     }).join("");
     var w = q.rw8;
@@ -288,8 +288,9 @@
     h += '<div class="panel"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Quadro RW · cripto-attività</h3>' + (ivaca ? '<button type="button" class="btn gold" id="stampaRW">Stampa / PDF quadro RW</button>' : "") + "</div>";
     if (!ivaca) h += '<p class="muted">Per compilare il quadro RW servono i calcoli della prima pagina (transazioni e saldi di inizio e fine anno).</p></div>';
     else {
-      var q = MOD.quadroRW(ivaca, { titolo: S.modelli.titolo });
-      h += '<div class="grid2" style="margin:10px 0"><label class="f"><span class="t">Col. 1 · titolo di possesso</span><select data-mod="titolo">' + [1, 2, 3, 4].map(function (k) { return '<option value="' + k + '"' + (S.modelli.titolo === k ? " selected" : "") + ">" + k + " · " + TITOLI[k] + "</option>"; }).join("") + "</select></label>" +
+      var q = MOD.quadroRW(ivaca, { titolo: S.modelli.titolo, sogliaPeriodi: S.modelli.sogliaPeriodi });
+      h += '<div class="grid2" style="margin:10px 0">' +
+        '<label class="f"><span class="t">Rigo unico per le cripto con più di … periodi</span><input class="num" type="number" min="0" step="1" data-mod="sogliaPeriodi" value="' + esc(S.modelli.sogliaPeriodi) + '"><span class="small">Valore iniziale del primo periodo, valore medio ponderato per i giorni, giorni complessivi: l\'imposta resta uguale alla somma dei periodi. 0 = mai.</span></label><label class="f"><span class="t">Col. 1 · titolo di possesso</span><select data-mod="titolo">' + [1, 2, 3, 4].map(function (k) { return '<option value="' + k + '"' + (S.modelli.titolo === k ? " selected" : "") + ">" + k + " · " + TITOLI[k] + "</option>"; }).join("") + "</select></label>" +
         '<div class="f"><span class="t">Anno ' + q.anno + '</span><span class="small">' + q.righi.length + " righi in " + q.moduli + " moduli: un rigo per periodo di detenzione. Codice 21 (cripto-attività), criterio 1 (valore di mercato), quota " + String(ivaca.quota * 100).replace(".", ",") + "%.</span></div></div>" +
         '<p class="small">La circolare 30/E chiede un rigo per ogni portafoglio: qui i periodi sono calcolati sul totale dei wallet di ciascuna cripto.</p>' +
         '<div class="scroll">' + tabellaRW(q) + "</div></div>";
@@ -298,10 +299,10 @@
     return h;
   }
   function stampaRW() {
-    var q = MOD.quadroRW(ivaca, { titolo: S.modelli.titolo });
+    var q = MOD.quadroRW(ivaca, { titolo: S.modelli.titolo, sogliaPeriodi: S.modelli.sogliaPeriodi });
     apriStampa(intestazione("Modello Redditi PF · Quadro RW cripto-attività · anno " + q.anno) +
       '<table class="dati"><tr><td>Titolo di possesso (col. 1)</td><td>' + S.modelli.titolo + " · " + TITOLI[S.modelli.titolo] + "</td></tr><tr><td>Righi</td><td>" + q.righi.length + " (" + q.moduli + " moduli)</td></tr><tr><td>Transazioni</td><td>" + esc(S.tx.nome) + "</td></tr></table>" +
-      tabellaRW(q) + '<p class="nota">Un rigo per ogni periodo di detenzione a quantità costante: valore iniziale e finale di inizio e fine detenzione, giorni del periodo, imposta = valore finale × 0,20% × quota × giorni / 365. Codice bene 21; codice Stato non obbligatorio per le cripto-attività. La circolare 30/E chiede un rigo per portafoglio: i periodi sono calcolati sul totale dei wallet di ciascuna cripto.</p>' + firma());
+      tabellaRW(q) + '<p class="nota">' + (S.modelli.sogliaPeriodi > 0 ? "Le cripto con più di " + S.modelli.sogliaPeriodi + " periodi sono in un rigo unico: col. 7 valore iniziale del primo periodo, col. 8 valore medio ponderato per i giorni, col. 10 giorni complessivi; l'imposta è uguale alla somma dei periodi. " : "") + 'Per le altre, un rigo per ogni periodo di detenzione a quantità costante: valore iniziale e finale di inizio e fine detenzione, giorni del periodo, imposta = valore finale × 0,20% × quota × giorni / 365. Codice bene 21; codice Stato non obbligatorio per le cripto-attività. La circolare 30/E chiede un rigo per portafoglio: i periodi sono calcolati sul totale dei wallet di ciascuna cripto.</p>' + firma());
   }
   function render() {
     nav();
