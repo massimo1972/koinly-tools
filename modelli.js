@@ -41,7 +41,8 @@
   }
 
   /* Quadro RT, sezione cripto-attività, secondo il modello dell'anno (istruzioni Redditi PF, fascicolo 2):
-     anno 2023 → Redditi PF 2024, sezione II-B, righi RT31-RT39 (plusvalenza intera se almeno 2.000 €);
+     anno 2023 → Redditi PF 2024, sezione II-B, righi RT31-RT39 (franchigia di 2.000 €: la parte che eccede, criterio dello studio;
+       le istruzioni del rigo RT33 indicano la differenza intera se non inferiore a 2.000 €);
      anno 2024 → Redditi PF 2025, sezione V, righi RT41-RT45, RT57, RT88-RT90 (solo la parte oltre 2.000 €);
      anno 2025 → Redditi PF 2026, stessi righi, cessioni 2025 in RT41 col. 3-4 senza franchigia. Aliquota 26%.
      opz: { minusPrecedenti, eccedenzaPrecedente } */
@@ -51,11 +52,12 @@
     var add = function (rigo, col, desc, v) { out.righi.push({ rigo: rigo, col: col, descrizione: desc, valore: v }); };
     if (anno === 2023) {
       out.modello = "Redditi PF 2024 · quadro RT, sezione II-B (cripto-attività)";
-      var plus23 = diff >= 2000 ? diff : 0, min23 = diff < -2000 ? -diff : 0;
+      // franchigia di 2.000 €: si indica la parte che eccede (criterio dello studio, come per il 2024)
+      var plus23 = diff > 2000 ? diff - 2000 : 0, min23 = diff < -2000 ? -diff - 2000 : 0;
       add("RT31", "", "Totale dei corrispettivi", c);
       add("RT32", "2", "Totale dei costi o valori di acquisto", k);
-      add("RT33", "1", "Minusvalenza (perdita oltre 2.000 €)", min23);
-      add("RT33", "2", "Plusvalenza (RT31 − RT32 col. 2, se almeno 2.000 €)", plus23);
+      add("RT33", "1", "Minusvalenza (parte che eccede 2.000 €)", min23);
+      add("RT33", "2", "Plusvalenza (RT31 − RT32 col. 2, per la parte che eccede 2.000 €)", plus23);
       var m23 = Math.min(minus, plus23);
       add("RT34", "", "Eccedenza delle minusvalenze degli anni precedenti", m23);
       add("RT35", "2", "Minusvalenze certificate dagli intermediari", 0);

@@ -47,7 +47,7 @@ Prospetti compilati secondo i modelli ministeriali, stampabili in PDF con l'inte
 
   | Anno | Modello | Righi | Franchigia di 2.000 € |
   |---|---|---|---|
-  | 2023 | Redditi PF 2024 | RT31-RT39 | plusvalenza intera se almeno 2.000 € |
+  | 2023 | Redditi PF 2024 | RT31-RT39 | solo l'eccedenza (criterio dello studio) |
   | 2024 | Redditi PF 2025 | RT41, RT43-RT45, RT57, RT88-RT90 | solo l'eccedenza |
   | 2025 | Redditi PF 2026 | RT41 col. 3-4 | nessuna |
 

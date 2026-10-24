@@ -5,11 +5,11 @@ const M = require("../modelli.js"), Z = require("../sanzioni.js");
 let n = 0; const t = (nome, fn) => { fn(); n++; console.log("ok -", nome); };
 const val = (q, rigo, col) => q.righi.find((x) => x.rigo === rigo && String(x.col) === String(col || "")).valore;
 
-t("RT 2023 (Redditi PF 2024): plusvalenza intera se almeno 2.000 €, righi RT31-RT39", () => {
+t("RT 2023 (Redditi PF 2024): franchigia di 2.000 €, righi RT31-RT39", () => {
   const q = M.quadroRT(2023, 10000, 7000);
-  assert.equal(val(q, "RT33", 2), 3000); assert.equal(val(q, "RT37"), 780); assert.equal(val(q, "RT39"), 780);
+  assert.equal(val(q, "RT33", 2), 1000); assert.equal(val(q, "RT37"), 260); assert.equal(val(q, "RT39"), 260);
   assert.equal(val(M.quadroRT(2023, 10000, 8500), "RT33", 2), 0);
-  assert.equal(M.quadroRT(2023, 1000, 5000).minusvalenzaDaRiportare, 4000);
+  assert.equal(M.quadroRT(2023, 1000, 5000).minusvalenzaDaRiportare, 2000);
 });
 t("RT 2024 (Redditi PF 2025): solo l'eccedenza oltre 2.000 €, righi RT41, RT57, RT88-RT90", () => {
   const q = M.quadroRT(2024, 10000, 7000);

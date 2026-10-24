@@ -219,7 +219,7 @@
       : '<tr class="tot"><td>Sanzioni minime per omessa dichiarazione</td><td></td><td class="n">' + E(r.sanzionePiena) + '</td><td></td></tr><tr class="tot"><td>Sanzioni ridotte a 1/3 (definizione dopo la contestazione)</td><td></td><td class="n">' + E(r.sanzioneUnTerzo) + '</td><td></td></tr><tr class="tot"><td colspan="3">Totale indicativo con imposte e interessi</td><td class="n">' + E(r.totale) + "</td></tr>";
     return '<table class="det"><thead><tr><th>Voce</th><th class="n">Imposta</th><th class="n">Sanzione</th><th class="n">Interessi</th></tr></thead><tbody>' + righe + tot + "</tbody></table>" +
       '<p class="small" style="margin:6px 0 0">Scadenze ' + r.anno + ": dichiarazione " + D.it(r.termini.dichiarazione) + ", saldo " + D.it(r.termini.saldo) + " · " + (r.regime === "nuovo" ? "violazione dal 1/9/2024: art. 13 D.Lgs. 472/1997 e art. 1 D.Lgs. 471/1997 nel testo del D.Lgs. 87/2024" : "violazione fino al 31/8/2024: testo previgente") +
-      ". RT: plusvalenze " + E(r.rt.plusvalenze) + (r.rt.franchigia ? (r.rt.intera ? " (intera se almeno " + E(r.rt.franchigia, 0) + ")" : " − franchigia " + E(r.rt.franchigia, 0)) : "") + " × " + Math.round(r.rt.aliquota * 100) + "%. " + esc(r.rt.nota) + "</p>";
+      ". RT: plusvalenze " + E(r.rt.plusvalenze) + (r.rt.franchigia ? " − franchigia " + E(r.rt.franchigia, 0) : "") + " × " + Math.round(r.rt.aliquota * 100) + "%. " + esc(r.rt.nota) + "</p>";
   }
   function viewSanzioni() {
     var Sz = S.sanz, calc = calcoliSanzioni();

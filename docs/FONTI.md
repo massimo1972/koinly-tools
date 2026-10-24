@@ -83,6 +83,6 @@ Fonti principali:
 
 | Anno | Istruzioni | Regola |
 |---|---|---|
-| 2023 | Redditi PF 2024, rigo RT33 | La differenza «deve essere non inferiore a 2.000 euro»: si tassa per intero |
+| 2023 | Redditi PF 2024, rigo RT33 | La differenza «deve essere non inferiore a 2.000 euro». Lo strumento applica comunque la franchigia, cioè solo l'eccedenza (criterio dello studio) |
 | 2024 | Redditi PF 2025, rigo RT57 | Si indica la differenza «per la parte che eccede la soglia di euro 2.000» |
 | 2025 | Redditi PF 2026 | Nessuna franchigia per le cessioni dell'anno |
