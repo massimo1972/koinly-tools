@@ -25,6 +25,11 @@ table.det ul{margin:0;padding-left:16px}
 table.periodi{font-size:.8rem;margin:6px 0 4px}
 .u{font-family:var(--f-body);font-size:.75em;color:var(--ink-2)}
 .piede{margin-top:28px;padding-top:10px;border-top:1px solid var(--line)}
+.banner .btnlink{color:var(--gold);font-weight:600}
+.donazioni{font-size:1.15rem;font-weight:600;line-height:1.45;color:#b85600;margin:0}
+.donazioni b{color:inherit}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .donazioni{color:#f7931a}}
+:root[data-theme="dark"] .donazioni{color:#f7931a}
 .btnlink{background:none;border:0;color:var(--navy-2);text-decoration:underline;cursor:pointer;font:inherit;padding:0}
 .avvisi{margin:0;padding-left:18px}
 .avvisi li{margin-bottom:4px}
@@ -60,6 +65,7 @@ table.periodi{font-size:.8rem;margin:6px 0 4px}
   #resoconto .panel{border:0;padding:0;margin-top:10px}
   #resoconto .banner{border:1px solid #a8822f;padding:6px 8px;margin:8px 0}
   #resoconto ol,#resoconto ul{margin:4px 0 4px 18px;padding:0}
+  #resoconto .donazioni{font-size:11pt;color:#b85600;margin-top:12px}
   #resoconto .nota{font-size:7.5pt;color:#444}
   #resoconto .avvisi li.hi{color:#b42318}
   body:not(.in-stampa) header.band nav,body:not(.in-stampa) .toolbar,body:not(.in-stampa) .slots,body:not(.in-stampa) .noprint{display:none!important}
