@@ -7,5 +7,5 @@ window.KoinlyStudio = {
   email: "info@studiomecryptoassettasse.it",
   telefono: "",
   sito: "",
-  partitaIva: ""
+  partitaIva: "05428060486"
 };
