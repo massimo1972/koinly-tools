@@ -1,0 +1,54 @@
+/* Koinly Tools: aggiunte allo stile comune (app.css) */
+.slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.slot{border:1px solid var(--line);border-radius:8px;padding:14px;background:var(--field);display:grid;gap:8px;align-content:start}
+.slot.ok{border-color:var(--ok);background:var(--ok-bg)}
+.slot.err{border-color:var(--hi);background:var(--hi-bg)}
+.slot h3{margin:0;font-size:1rem}
+.slot .req{font:600 .72rem var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--gold)}
+.slot input[type=file]{font-size:.85rem;max-width:100%}
+.slot .stato{font-size:.85rem;margin:0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.card{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--surface)}
+.card .k{font-size:.8rem;color:var(--ink-2)}
+.card .v{font:600 1.25rem var(--f-mono);font-variant-numeric:tabular-nums}
+.card.hl{border-color:var(--gold);background:var(--gold-soft)}
+table.det{width:100%;border-collapse:collapse;font-size:.88rem}
+table.det th,table.det td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+table.det th{font-size:.78rem;color:var(--ink-2);font-weight:600;background:var(--field);position:sticky;top:0}
+table.det td.n,table.det th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+table.det tr.tot td{font-weight:700;border-top:2px solid var(--ink-2)}
+table.det tr.escl td{opacity:.55}
+table.det input.num{width:120px;padding:4px 6px}
+table.det .note{font-size:.8rem;color:var(--ink-2);max-width:340px}
+table.det .note li{margin:0 0 2px}
+table.det ul{margin:0;padding-left:16px}
+table.periodi{font-size:.8rem;margin:6px 0 4px}
+.btnlink{background:none;border:0;color:var(--navy-2);text-decoration:underline;cursor:pointer;font:inherit;padding:0}
+.avvisi{margin:0;padding-left:18px}
+.avvisi li{margin-bottom:4px}
+.avvisi li.hi{color:var(--hi)}
+.metodi{font-size:.86rem;color:var(--ink-2);max-width:80ch}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) table.det .btnlink{color:var(--gold)}}
+#resoconto{display:none}
+@media print{
+  @page{size:A4 landscape;margin:12mm}
+  body{background:#fff;color:#000;font-size:9pt}
+  body.in-stampa header.band,body.in-stampa main{display:none!important}
+  body.in-stampa #resoconto{display:block}
+  #resoconto h1{font:600 16pt var(--f-display);margin:0}
+  #resoconto h2{font:600 11pt var(--f-display);margin:14px 0 4px;break-after:avoid}
+  #resoconto .testata{border-bottom:2px solid #a8822f;padding-bottom:4px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
+  #resoconto .testata p{margin:0;color:#555}
+  #resoconto table{border-collapse:collapse;width:100%;font-size:8pt}
+  #resoconto table.dati{width:auto}
+  #resoconto td,#resoconto th{border-bottom:1px solid #ccc;padding:2px 6px;text-align:left}
+  #resoconto th{background:#eef1f6}
+  #resoconto .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #resoconto tr.tot td{font-weight:700;border-top:1.5px solid #000}
+  #resoconto thead{display:table-header-group}
+  #resoconto tr{break-inside:avoid}
+  #resoconto .nota{font-size:7.5pt;color:#444}
+  #resoconto .avvisi li.hi{color:#b42318}
+  body:not(.in-stampa) header.band nav,body:not(.in-stampa) .toolbar,body:not(.in-stampa) .slots,body:not(.in-stampa) .noprint{display:none!important}
+}
