@@ -42,6 +42,8 @@ t("Dichiarazione omessa: niente ravvedimento, sanzioni minime e definizione a 1/
   assert.equal(r.ravvedibile, false);
   near(r.sanzionePiena, Math.max((140 + 780) * 1.2, 250) + 70000 * 0.03); near(r.sanzioneUnTerzo, r.sanzionePiena / 3);
   assert.ok(r.note.some((x) => /non è tecnicamente possibile/.test(x)) && r.note.some((x) => /contestata dall'Agenzia/.test(x)));
+  const v = r.ravvedimentoValido, p = Z.calcolaAnno({ anno: 2023, stato: "presentata", valoreRw: 70000, ivaca: 140, plusvalenze: 5000, pagamento: PAG });
+  assert.ok(v && v.ravvedibile); near(v.sanzioni, p.sanzioni); near(v.totale, p.totale);
 });
 t("Dichiarazione omessa ma entro 90 giorni: tardiva con 1/10 di 250 € e ravvedimento dei versamenti", () => {
   const r = Z.calcolaAnno({ anno: 2024, stato: "omessa", valoreRw: 1000, ivaca: 50, plusvalenze: 0, pagamento: "2025-12-15" });

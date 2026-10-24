@@ -115,6 +115,9 @@
       out.note.push("Dichiarazione omessa (non è stato presentato nulla per il " + d.anno + ", neanche per altri redditi): il ravvedimento non è tecnicamente possibile, perché la dichiarazione presentata oltre 90 giorni dalla scadenza è considerata omessa (art. 13 c. 2-ter D.Lgs. 472/1997).");
       out.note.push("In caso di contestazione la sanzione si può definire pagando un terzo di quella irrogata: " + fmt(out.sanzioneUnTerzo) + " sulle sanzioni minime qui calcolate. È opportuno che la violazione sia contestata dall'Agenzia delle Entrate e non pagata in autonomia.");
       out.totale = imposte + out.voci.reduce(function (a, v) { return a + (v.interessi || 0); }, 0) + out.sanzioneUnTerzo;
+      // per confronto: le sanzioni se il ravvedimento fosse valido (come per una dichiarazione presentata da integrare)
+      out.ravvedimentoValido = calcolaAnno({ anno: d.anno, stato: "presentata", valoreRw: valoreRw, ivaca: ivaca, plusvalenze: plus, pagamento: pag });
+      out.note.push("Per confronto, con un ravvedimento valido le sanzioni sarebbero " + fmt(out.ravvedimentoValido.sanzioni) + " (totale con imposte e interessi " + fmt(out.ravvedimentoValido.totale) + ").");
       return chiudi(out);
     }
     out.ravvedibile = true;

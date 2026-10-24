@@ -195,6 +195,18 @@
     });
   }
   function tabellaAnno(r) {
+    if (!r.ravvedibile && r.ravvedimentoValido) return tabellaVoci(r) +
+      '<h4 style="margin:14px 0 6px">Confronto: sanzioni da ravvedimento valido</h4><p class="small" style="margin:0 0 6px">Importi se il ravvedimento fosse ammesso, come per una dichiarazione presentata da integrare.</p>' + tabellaVoci(r.ravvedimentoValido) +
+      '<table class="det" style="margin-top:10px"><thead><tr><th>Sintesi delle sanzioni</th><th class="n">Importo</th></tr></thead><tbody>' +
+      "<tr><td>Sanzioni minime per omessa dichiarazione (senza riduzioni)</td><td class=\"n\">" + E(r.sanzionePiena) + "</td></tr>" +
+      "<tr><td>Sanzioni ridotte a 1/3 dopo la contestazione</td><td class=\"n\">" + E(r.sanzioneUnTerzo) + "</td></tr>" +
+      "<tr><td>Sanzioni da ravvedimento valido</td><td class=\"n\">" + E(r.ravvedimentoValido.sanzioni) + "</td></tr></tbody></table>" + noteAnno(r);
+    return tabellaVoci(r) + noteAnno(r);
+  }
+  function noteAnno(r) {
+    return r.note.length ? '<ul class="avvisi" style="margin-top:6px">' + r.note.map(function (n) { return '<li class="' + (/non è tecnicamente possibile|contestata/.test(n) ? "hi" : "") + '">' + esc(n) + "</li>"; }).join("") + "</ul>" : "";
+  }
+  function tabellaVoci(r) {
     var righe = r.voci.filter(function (v) { return v.imposta || v.sanzione || v.interessi; }).map(function (v) {
       return "<tr><td>" + esc(v.voce) + '</td><td class="n">' + (v.imposta ? E(v.imposta) : "–") + '</td><td class="n">' + (v.sanzione != null ? E(v.sanzione) : "–") + '</td><td class="n">' + (v.interessi ? E(v.interessi) : "–") + "</td></tr>";
     }).join("");
@@ -203,8 +215,7 @@
       : '<tr class="tot"><td>Sanzioni minime per omessa dichiarazione</td><td></td><td class="n">' + E(r.sanzionePiena) + '</td><td></td></tr><tr class="tot"><td>Sanzioni ridotte a 1/3 (definizione dopo la contestazione)</td><td></td><td class="n">' + E(r.sanzioneUnTerzo) + '</td><td></td></tr><tr class="tot"><td colspan="3">Totale indicativo con imposte e interessi</td><td class="n">' + E(r.totale) + "</td></tr>";
     return '<table class="det"><thead><tr><th>Voce</th><th class="n">Imposta</th><th class="n">Sanzione</th><th class="n">Interessi</th></tr></thead><tbody>' + righe + tot + "</tbody></table>" +
       '<p class="small" style="margin:6px 0 0">Scadenze ' + r.anno + ": dichiarazione " + D.it(r.termini.dichiarazione) + ", saldo " + D.it(r.termini.saldo) + " · " + (r.regime === "nuovo" ? "violazione dal 1/9/2024: art. 13 D.Lgs. 472/1997 e art. 1 D.Lgs. 471/1997 nel testo del D.Lgs. 87/2024" : "violazione fino al 31/8/2024: testo previgente") +
-      ". RT: plusvalenze " + E(r.rt.plusvalenze) + (r.rt.franchigia ? " − franchigia " + E(r.rt.franchigia, 0) : "") + " × " + Math.round(r.rt.aliquota * 100) + "%. " + esc(r.rt.nota) + "</p>" +
-      (r.note.length ? '<ul class="avvisi" style="margin-top:6px">' + r.note.map(function (n) { return '<li class="' + (/non è tecnicamente possibile|contestata/.test(n) ? "hi" : "") + '">' + esc(n) + "</li>"; }).join("") + "</ul>" : "");
+      ". RT: plusvalenze " + E(r.rt.plusvalenze) + (r.rt.franchigia ? " − franchigia " + E(r.rt.franchigia, 0) : "") + " × " + Math.round(r.rt.aliquota * 100) + "%. " + esc(r.rt.nota) + "</p>";
   }
   function viewSanzioni() {
     var Sz = S.sanz, calc = calcoliSanzioni();
@@ -226,8 +237,10 @@
         '<div class="scroll" style="margin-top:10px">' + tabellaAnno(r) + "</div></div>";
     }).join("");
     var tot = calc.reduce(function (s, r) { return s + (r.totale || 0); }, 0), omesse = calc.filter(function (r) { return !r.ravvedibile; });
-    h += '<div class="cards" style="margin-top:14px"><div class="card hl"><div class="k">Totale ravvedimento (imposte, sanzioni, interessi)</div><div class="v">' + E(calc.filter(function (r) { return r.ravvedibile; }).reduce(function (s, r) { return s + r.totale; }, 0)) + "</div></div>" +
-      (omesse.length ? '<div class="card"><div class="k">Anni con dichiarazione omessa: totale indicativo con sanzioni a 1/3</div><div class="v">' + E(omesse.reduce(function (s, r) { return s + r.totale; }, 0)) + "</div></div>" : "") + "</div>" +
+    var ravv = calc.filter(function (r) { return r.ravvedibile; });
+    h += '<div class="cards" style="margin-top:14px">' + (ravv.length ? '<div class="card hl"><div class="k">Totale ravvedimento (imposte, sanzioni, interessi)</div><div class="v">' + E(ravv.reduce(function (s, r) { return s + r.totale; }, 0)) + "</div></div>" : "") +
+      (omesse.length ? '<div class="card"><div class="k">Anni con dichiarazione omessa: totale indicativo con sanzioni a 1/3</div><div class="v">' + E(omesse.reduce(function (s, r) { return s + r.totale; }, 0)) + "</div></div>" +
+        '<div class="card"><div class="k">Stessi anni con ravvedimento valido</div><div class="v">' + E(omesse.reduce(function (s, r) { return s + r.ravvedimentoValido.totale; }, 0)) + "</div></div>" : "") + "</div>" +
       '<p class="metodi">Sanzione RW: 3% (minimo) del valore non dichiarato, art. 5 c. 2 DL 167/1990, ridotta con il ravvedimento. Imposte (IVACA e RT): sanzione per infedele dichiarazione ridotta, che assorbe quella per omesso versamento (circ. 42/E/2016), più interessi legali giorno per giorno dalla scadenza del saldo. Il ravvedimento è precluso dalla notifica di atti di liquidazione o accertamento (art. 13 c. 1-ter D.Lgs. 472/1997). Dal 1/1/2027 entra in vigore il Testo unico sanzioni (D.Lgs. 173/2024).</p>';
     return h;
   }
@@ -240,7 +253,8 @@
         return "<h2>Anno " + r.anno + "</h2><p>Dichiarazione: " + (a.stato === "omessa" ? "omessa" : "presentata senza quadri RW e RT") + (a.nome ? " · Report Koinly: " + esc(a.nome) : "") + " · Valore finale RW: " + E(+a.valoreRw || 0) + " · IVACA: " + E(r.anno < 2023 ? 0 : +a.ivaca || 0) + " · Plusvalenze: " + E(+a.plusvalenze || 0) + "</p>" + tabellaAnno(r);
       }).join("") +
       "<h2>Riepilogo</h2><table class=\"det\"><thead><tr><th>Anno</th><th class=\"n\">Imposte</th><th class=\"n\">Sanzioni</th><th class=\"n\">Interessi</th><th class=\"n\">Totale</th></tr></thead><tbody>" +
-      calc.map(function (r) { return "<tr><td>" + r.anno + (r.ravvedibile ? "" : " (omessa: sanzioni a 1/3, indicativo)") + '</td><td class="n">' + E(r.imposte) + '</td><td class="n">' + E(r.sanzioni) + '</td><td class="n">' + E(r.interessi) + '</td><td class="n">' + E(r.totale) + "</td></tr>"; }).join("") +
+      calc.map(function (r) { return "<tr><td>" + r.anno + (r.ravvedibile ? "" : " (omessa: sanzioni a 1/3, indicativo)") + '</td><td class="n">' + E(r.imposte) + '</td><td class="n">' + E(r.sanzioni) + '</td><td class="n">' + E(r.interessi) + '</td><td class="n">' + E(r.totale) + "</td></tr>" +
+        (r.ravvedimentoValido ? "<tr><td>" + r.anno + " con ravvedimento valido (confronto)</td><td class=\"n\">" + E(r.ravvedimentoValido.imposte) + '</td><td class="n">' + E(r.ravvedimentoValido.sanzioni) + '</td><td class="n">' + E(r.ravvedimentoValido.interessi) + '</td><td class="n">' + E(r.ravvedimentoValido.totale) + "</td></tr>" : ""); }).join("") +
       '<tr class="tot"><td>Totale</td><td class="n">' + E(calc.reduce(function (s, r) { return s + r.imposte; }, 0)) + '</td><td class="n">' + E(calc.reduce(function (s, r) { return s + r.sanzioni; }, 0)) + '</td><td class="n">' + E(calc.reduce(function (s, r) { return s + r.interessi; }, 0)) + '</td><td class="n">' + E(calc.reduce(function (s, r) { return s + r.totale; }, 0)) + "</td></tr></tbody></table>" +
       '<p class="nota">Norme applicate (testi letti su Normattiva): art. 13 D.Lgs. 472/1997 (ravvedimento), art. 1 e art. 13 D.Lgs. 471/1997, art. 5 c. 2 DL 167/1990, art. 19 cc. 18-21 DL 201/2011, art. 67 c. 1 lett. c-sexies TUIR. Per le violazioni dal 1/9/2024 il testo modificato dal D.Lgs. 87/2024. Interessi al tasso legale di ciascun anno. Valori e plusvalenze ai dati Koinly, non rettificati. Stima da verificare: non sostituisce il parere del professionista.</p>' + firma();
     apriStampa(h);
