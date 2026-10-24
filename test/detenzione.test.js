@@ -61,6 +61,7 @@ t("IVACA per periodi: valore finale × 0,20% × quota × giorni / 365, valori de
   const b = iv.righe.find((r) => r.nome === "BTC"), e = iv.righe.find((r) => r.nome === "ETH");
   near(b.periodi[0].valoreIniziale, 90000); assert.equal(b.periodi[0].fonteIniziale, "report");
   near(b.periodi[1].valore, 54000); assert.equal(b.periodi[1].fonteFinale, "report");
+  near(b.periodi[1].valoreIniziale, b.periodi[0].valore); assert.equal(b.periodi[1].fonteIniziale, "precedente");
   near(b.ivaca, 60000 * 0.002 * 69 / 365 + 54000 * 0.002 * 296 / 365);
   near(e.ivaca, 6000 * 0.002 * 214 / 365);
   const met = I.calcola(c, { quota: 0.5, saldiInizio: ini.saldi, saldiFine: fin.saldi });

@@ -36,6 +36,11 @@
       });
       var ultimo = periodi[periodi.length - 1];
       if (ultimo && o.valori && o.valori[r.chiave] != null && o.valori[r.chiave] !== "") { ultimo.valore = +o.valori[r.chiave]; ultimo.fonteFinale = "manuale"; }
+      // periodi consecutivi: il valore iniziale è il valore finale del periodo precedente
+      periodi.forEach(function (p, i) {
+        var prec = periodi[i - 1];
+        if (prec && prec.valore != null && giornoDopo(prec.al) === p.dal) { p.valoreIniziale = prec.valore; p.fonteIniziale = "precedente"; }
+      });
       periodi.forEach(function (p) { p.ivaca = p.valore == null ? null : p.valore * p.giorni * k; });
       var completi = periodi.every(function (p) { return p.valore != null; });
       var ivaca = completi ? periodi.reduce(function (a, p) { return a + p.ivaca; }, 0) : null;
@@ -56,6 +61,8 @@
       totali: { ivaca: totale, ivacaMedia: tot("ivacaMedia"), righiRw: righe.reduce(function (a, r) { return a + (r.incluso ? r.periodi.length : 0); }, 0) },
       daVersare: totale > P.sogliaVersamento, mancanti: righe.filter(function (r) { return r.incluso && r.ivaca == null; }).length };
   }
+
+  function giornoDopo(g) { return new Date(Date.parse(g + "T00:00:00Z") + 86400000).toISOString().slice(0, 10); }
 
   return { calcola: calcola, PARAMETRI: PARAMETRI };
 });
