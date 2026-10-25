@@ -37,6 +37,9 @@ Uscite: tabella a video con i periodi; Excel (fogli «Righi RW» e «Riepilogo p
   - permuta: valore del momento;
   - interessi, reward e airdrop: valore del giorno;
   - trasferimenti tra wallet propri: nessun effetto, e quelli non abbinati da Koinly sono riconosciuti in automatico.
+- **Operazioni da verificare e richiesta al cliente:**
+  - ogni deposito o prelievo verso wallet non collegati riporta degli indizi: destinazione e hash assenti, probabile invio di prova, uscita di somme appena ricevute in prestito (anche se il prestito è in valuta e viene subito cambiato in stablecoin);
+  - il pulsante «Richiesta di chiarimenti al cliente» stampa le operazioni filtrate non ancora corrette, con le domande e i documenti da chiedere.
 - **Swap dal 2023** (regole dello studio, art. 67 c. 1 lett. c-sexies TUIR):
   - permute tra cripto, acquisti con stablecoin e scambi tra stablecoin non realizzano e trasferiscono il costo LIFO alla cripto ricevuta;
   - restano cessioni le vendite contro valuta e contro stablecoin;

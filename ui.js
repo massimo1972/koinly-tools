@@ -93,6 +93,12 @@
     return '<div class="slot' + (err ? " err" : x ? " ok" : "") + '"><span class="req">' + (obbl ? "Obbligatorio" : "Facoltativo") + "</span><h3>" + titolo + '</h3><p class="small muted" style="margin:0">' + testo + "</p>" +
       '<input type="file" accept="' + accetta + '" data-slot="' + id + '">' + stato + (x ? '<button type="button" class="btnlink small" data-togli="' + id + '">Togli il file</button>' : "") + "</div>";
   }
+  /* Complete tax report Koinly: facoltativo, serve al confronto cessione per cessione (Costi di carico, Sanzioni, Quadri, memoria) */
+  function slotKoinlyCes() {
+    var x = S.koinlyCes, err = S.koinlyCesErrore;
+    return '<div class="slot' + (err ? " err" : x ? " ok" : "") + '"><span class="req">Facoltativo</span><h3>Complete tax report Koinly</h3><p class="small muted" style="margin:0">PDF del «Complete tax report» (anche di più anni): le sue cessioni si confrontano una per una con quelle ricostruite, nella scheda Costi di carico.</p>' +
+      '<input type="file" accept=".pdf" data-koinlyces>' + (err ? '<p class="stato" style="color:var(--hi)">' + esc(err) + "</p>" : x ? '<p class="stato"><b>' + esc(x.nome) + "</b><br>periodo " + esc(x.periodo || "") + " · " + x.cessioni.length + " cessioni · date in " + (x.fuso === "UTC" ? "UTC" : "ora italiana") + '</p><button type="button" class="btnlink small" id="togliKoinlyCes">Togli il file</button>' : "") + "</div>";
+  }
   function viewIvaca() {
     var h = '<h2>Giorni di detenzione e IVACA</h2><p class="lead">Dalle transazioni Koinly si ricostruiscono, cripto per cripto e sul totale di tutti i wallet, i giorni di detenzione dell\'anno e i periodi a quantità costante; con il valore di fine anno si calcola l\'imposta sul valore delle cripto-attività (quadro RW, col. 33).</p>' +
       '<div class="banner beta-avviso"><strong>Versione beta</strong><p>Koinly Tools è in fase di test: i risultati vanno verificati con lo studio prima di usarli per la dichiarazione o per qualsiasi versamento. Segnalazioni e suggerimenti sono benvenuti.</p></div>' +
@@ -101,6 +107,7 @@
       slot("tx", "Transazioni", true, "CSV di Koinly con tutte le transazioni: «backup_transactions_koinly.csv» oppure «transaction history».", ".csv,text/csv") +
       slot("inizio", "Saldi a inizio anno", true, "«Beginning of year holdings» in CSV (o il report di fine dell'anno precedente): quantità e valori al 1° gennaio.", ".csv,.pdf") +
       slot("fine", "Saldi a fine anno", true, "«End of year holdings» in CSV o «Complete tax report» in PDF: quantità e valori al 31/12, per il riscontro e il valore finale.", ".csv,.pdf") +
+      slotKoinlyCes() +
       "</div></div>";
     var manca = [!S.tx && "le transazioni", !S.inizio && "i saldi a inizio anno", !S.fine && "i saldi a fine anno"].filter(Boolean);
     if (manca.length) return h + '<p class="muted" style="margin-top:14px">Per calcolare servono tutti e tre i file: mancano ' + manca.join(", ").replace(/, ([^,]*)$/, " e $1") + ".</p>";
@@ -343,6 +350,7 @@
       '<div class="card hl"><div class="k">Plusvalenza ' + (anno >= 2023 ? "cessioni contro valuta e stablecoin" : "tutte le cessioni") + "</div><div class=\"v\">" + E((anno >= 2023 ? tv : tt).corrispettivi - (anno >= 2023 ? tv : tt).costi, 0) + '</div><div class="k">corrispettivi ' + E((anno >= 2023 ? tv : tt).corrispettivi, 0) + " · costi " + E((anno >= 2023 ? tv : tt).costi, 0) + "</div></div>" +
       '<div class="card"><div class="k">Operazioni da verificare (tutto lo storico)</div><div class="v">' + aperte.length + " / " + da.length + '</div><div class="k">' + r.trasferimentiAbbinati + " trasferimenti tra wallet abbinati in automatico</div></div></div>";
     if (r.avvisi.length) h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Avvisi</h3><ul class="avvisi">' + r.avvisi.map(function (a) { return "<li>" + esc(a) + "</li>"; }).join("") + "</ul></div>";
+    h += sezioneConfrontoKoinly(anno);
     // operazioni da correggere
     var F = S.costi.filtro, cripto = {}, wallet = {};
     da.forEach(function (v) { cripto[v.cripto] = true; if (v.wallet) wallet[v.wallet] = true; });
@@ -353,9 +361,9 @@
       '<label class="toggle" style="align-self:end"><input type="checkbox" data-cf="soloAperte"' + (F.soloAperte ? " checked" : "") + "><span>Solo quelle non ancora corrette</span></label></div>" +
       (filtrate.length && F.tipo ? '<div class="toolbar" style="margin:10px 0"><span class="small" style="align-self:center">Applica a tutte le ' + filtrate.length + " filtrate:</span>" + (AZIONI[F.tipo] || []).filter(function (o) { return o[0] && o[0] !== "costo" && o[0] !== "cessione" && o[0] !== "valore"; }).map(function (o) { return '<button type="button" class="btn ghost" data-blocco="' + o[0] + '">' + esc(o[1]) + "</button>"; }).join("") + '<button type="button" class="btn ghost" data-blocco="">Annulla le correzioni</button><input type="text" data-cs="motivoBlocco" value="' + esc(S.costi.motivoBlocco || "") + '" placeholder="Motivo comune (per la memoria)" style="max-width:320px"></div>' : '<p class="small muted">Scegliete un tipo per applicare una correzione in blocco.</p>') +
       '<div class="scroll"><table class="det"><thead><tr><th>Data</th><th>Tipo</th><th>Cripto</th><th class="n">Quantità</th><th>Wallet</th><th class="n">Valore Koinly</th><th>Indirizzo / TxHash</th><th>Correzione</th></tr></thead><tbody>' +
-      filtrate.slice(0, 150).map(function (v) { return "<tr><td>" + it(v.data) + "</td><td>" + esc(v.tipo) + "</td><td>" + esc(v.cripto) + '</td><td class="n">' + Q(v.q) + "</td><td>" + esc(v.wallet || "") + '</td><td class="n">' + E(v.valore) + '</td><td class="small" style="word-break:break-all;max-width:220px">' + esc(v.indirizzo || "") + (v.txHash ? "<br>" + esc(v.txHash) : "") + "</td><td>" + selectAzione(v) + "</td></tr>"; }).join("") +
-      "</tbody></table></div>" + (filtrate.length > 150 ? '<p class="small">Mostrate 150 operazioni su ' + filtrate.length + ": restringete i filtri o usate la correzione in blocco.</p>" : "") + "</div>";
-    h += sezioneConfrontoKoinly(anno);
+      filtrate.slice(0, 150).map(function (v) { return "<tr><td>" + it(v.data) + "</td><td>" + esc(v.tipo) + ((v.indizi || []).length ? '<div class="small" style="color:var(--mid)">' + v.indizi.map(esc).join("<br>") + "</div>" : "") + "</td><td>" + esc(v.cripto) + '</td><td class="n">' + Q(v.q) + "</td><td>" + esc(v.wallet || "") + '</td><td class="n">' + E(v.valore) + '</td><td class="small" style="word-break:break-all;max-width:220px">' + esc(v.indirizzo || "") + (v.txHash ? "<br>" + esc(v.txHash) : "") + "</td><td>" + selectAzione(v) + "</td></tr>"; }).join("") +
+      "</tbody></table></div>" + (filtrate.length > 150 ? '<p class="small">Mostrate 150 operazioni su ' + filtrate.length + ": restringete i filtri o usate la correzione in blocco.</p>" : "") +
+      '<div class="toolbar" style="margin-top:10px"><button type="button" class="btn gold" id="richiestaCliente">Richiesta di chiarimenti al cliente</button><span class="small" style="align-self:center">Stampa le operazioni filtrate non ancora corrette, con le domande da porre al cliente.</span></div></div>';
     h += sezioneBanca();
     // riepilogo per cripto
     h += '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Costi per cripto · ' + anno + '</h3><div class="toolbar noprint"><button type="button" class="btn" id="excelCosti">Scarica Excel</button><button type="button" class="btn gold" id="stampaCosti">Stampa / PDF</button><button type="button" class="btn gold" id="stampaMemoria">Memoria finale</button></div></div>' +
@@ -595,6 +603,33 @@
     apriStampa(intestazione("Questionario Agenzia delle Entrate · cripto-attività · anni " + q.anni.join(", ")) +
       '<table class="dati"><tr><td>Contribuente</td><td>' + esc(S.quest.cliente.nome || "________________") + "</td></tr><tr><td>Codice fiscale</td><td>" + esc(S.quest.cliente.cf || "________________") + "</td></tr><tr><td>Fonte dei dati</td><td>" + esc(S.tx.nome) + " (Koinly), costi LIFO globali ricostruiti con " + Object.keys(S.correzioni).length + " correzioni dello studio</td></tr></table>" +
       sezioniQuest(q, true) + '<p class="nota">Elaborato predisposto sui dati Koinly: le parti indicate vanno integrate con la documentazione del contribuente (estratti conto, contratti, dichiarazioni). Allegato: file Excel con gli elenchi completi.</p>' + firma());
+  }
+  /* Richiesta di chiarimenti al cliente sulle operazioni da verificare (filtri della scheda Costi, solo quelle non corrette).
+     Solo dati delle operazioni: data, cripto, quantità, piattaforma, controvalore, indirizzo e hash. */
+  function filtrateCosti() {
+    var F = S.costi.filtro;
+    return costiAnno(S.costi.anno).daVerificare.filter(function (v) { return (!F.tipo || v.tipo === F.tipo) && (!F.cripto || v.cripto === F.cripto) && (!F.wallet || v.wallet === F.wallet) && !S.correzioni[v.riga]; });
+  }
+  function stampaRichiesta() {
+    // i residui di valore trascurabile (meno di 1 €) non si chiedono al cliente: se ne indica solo il numero
+    var tutte = filtrateCosti(), el = tutte.filter(function (v) { return v.tipo === "senza valore" || Math.abs(v.valore || 0) >= 1; }), residui = tutte.length - el.length;
+    var DOM = {
+      prelievo: ["Prelievi di cripto-attività", "Per ciascun prelievo indicate: a quale wallet o piattaforma sono state inviate le cripto e se il wallet di destinazione è vostro; se sono state inviate a terzi, il motivo (pagamento di beni o servizi, prestito, dono, vendita privata) e l'eventuale corrispettivo ricevuto. Allegate l'estratto del wallet o della piattaforma di destinazione con l'accredito."],
+      deposito: ["Depositi di cripto-attività", "Per ciascun deposito indicate: da quale wallet o piattaforma provengono le cripto e se il wallet di provenienza è vostro; come e quando le avete acquistate o ricevute e a quale costo. Allegate l'estratto del wallet o della piattaforma di provenienza o la documentazione dell'acquisto."],
+      "senza valore": ["Operazioni senza controvalore in euro", "Per ciascuna operazione indicate, se lo conoscete, il controvalore in euro alla data o la documentazione da cui ricavarlo."]
+    };
+    var h = intestazione("Richiesta di chiarimenti sulle operazioni in cripto-attività") +
+      "<p>Gentile Cliente,</p><p>dalla ricostruzione delle vostre operazioni in cripto-attività risultano i movimenti elencati di seguito, per i quali i dati disponibili non bastano a stabilire il corretto trattamento fiscale. Vi chiediamo di fornirci i chiarimenti e i documenti indicati per ciascun gruppo.</p>";
+    if (!el.length) h += "<p><b>Non ci sono operazioni da chiarire con i filtri scelti.</b></p>";
+    ["prelievo", "deposito", "senza valore"].forEach(function (tipo) {
+      var g = el.filter(function (v) { return v.tipo === tipo; }); if (!g.length) return;
+      h += "<h2>" + DOM[tipo][0] + " (" + g.length + ")</h2><p>" + DOM[tipo][1] + "</p>" +
+        '<table class="det"><thead><tr><th>n.</th><th>Data</th><th>Cripto</th><th class="n">Quantità</th><th>Wallet / piattaforma</th><th class="n">Controvalore</th><th>Indirizzo / hash</th><th>Osservazioni</th><th>Risposta del cliente</th></tr></thead><tbody>' +
+        g.map(function (v, i) { return "<tr><td>" + (i + 1) + "</td><td>" + it(v.data) + "</td><td>" + esc(v.cripto) + '</td><td class="n">' + Q(v.q) + "</td><td>" + esc(v.wallet || "") + '</td><td class="n">' + E(v.valore) + '</td><td class="small" style="word-break:break-all;max-width:160px">' + esc([v.indirizzo, v.txHash].filter(Boolean).join(" · ") || "non indicati") + '</td><td class="small">' + (v.indizi || []).map(esc).join("<br>") + '</td><td style="min-width:140px"></td></tr>'; }).join("") + "</tbody></table>";
+    });
+    if (residui) h += '<p class="small">Non sono elencati ' + residui + " movimenti residuali di valore inferiore a 1 €.</p>";
+    h += "<p>Restiamo a disposizione per ogni chiarimento.</p>" + firma();
+    apriStampa(h);
   }
   function stampaDsan() {
     var q = calcolaQuest(), c = S.quest.cliente, miei = q.d3.chiavi.filter(function (x) { return attribuzione(x) === "mio"; });
@@ -912,6 +947,8 @@
     else if (t.id === "stampaSanz") stampaSanzioni();
     else if (t.id === "stampaRW") stampaRW();
     else if (t.id === "salvaLavoro") salvaLavoro();
+    else if (t.id === "togliKoinlyCes") { S.koinlyCes = null; S.koinlyCesErrore = null; render(); }
+    else if (t.id === "richiestaCliente") stampaRichiesta();
     else if (t.id === "svuotaBanca") { S.banca = { movimenti: [], lette: 0, scartate: 0, file: 0 }; render(); }
     else if (t.id === "excelCosti") excelCosti();
     else if (t.id === "stampaCosti") stampaCosti();

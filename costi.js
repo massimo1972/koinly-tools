@@ -86,9 +86,33 @@
        «cessione» (cessione a terzi con corrispettivo = importo), predefinito uscita senza corrispettivo. */
   function correzione(o, t) { var c = o.correzioni && o.correzioni[t.riga]; return c && c.azione ? c : null; }
 
+  /* Indizi per le operazioni da verificare (aiutano lo studio e la richiesta di chiarimenti al cliente):
+     - destinazione o provenienza e hash assenti nel file;
+     - uscita di somme appena ricevute in prestito (stesso wallet, prestito nelle 48 ore prima; stessa cripto con quantità entro il 2%
+       oppure controvalore in euro entro il 3%, per i prestiti in valuta subito convertiti in stablecoin):
+       è l'utilizzo della linea di credito, non la cessione di cripto proprie;
+     - invio di prova: piccolo prelievo seguito entro 2 ore da uno almeno 10 volte maggiore della stessa cripto dallo stesso wallet. */
+  function indizi(dv, prestiti) {
+    var ORA = 3600000, num = function (v) { return parseFloat(v.q) || 0; };
+    var prel = dv.filter(function (v) { return v.tipo === "prelievo"; });
+    dv.forEach(function (v) {
+      var ind = v.indizi = [];
+      if (!v.indirizzo && !v.txHash && v.tipo !== "senza valore") ind.push(v.tipo === "prelievo" ? "destinazione e hash assenti nel file Koinly" : "provenienza e hash assenti nel file Koinly");
+      if (v.tipo !== "prelievo") return;
+      var q = num(v);
+      var pr = prestiti.filter(function (p) { return (!p.wallet || !v.wallet || p.wallet === v.wallet) && p.ts <= v.ts && v.ts - p.ts <= 48 * ORA &&
+        ((p.chiave === v.chiave && Math.abs(p.q - q) <= q * 0.02) || (p.valore > 0 && v.valore > 0 && Math.abs(p.valore - v.valore) <= v.valore * 0.03)); })[0];
+      if (pr) { v.prestito = true; ind.push("somme ricevute in prestito poco prima (" + D.it(new Date(pr.ts).toISOString().slice(0, 10)) + "): utilizzo della linea di credito, non cessione di cripto proprie"); }
+      var dopo = prel.filter(function (w) { return w !== v && w.chiave === v.chiave && w.wallet === v.wallet && w.ts > v.ts && w.ts - v.ts <= 2 * ORA && num(w) >= q * 10; })[0];
+      if (dopo) { v.prova = true; ind.push("probabile invio di prova: segue entro 2 ore un invio maggiore della stessa cripto"); }
+      var prima = prel.filter(function (w) { return w !== v && w.chiave === v.chiave && w.wallet === v.wallet && w.ts < v.ts && v.ts - w.ts <= 2 * ORA && q >= num(w) * 10; })[0];
+      if (prima) ind.push("preceduto da un probabile invio di prova: verosimile trasferimento verso un indirizzo dello stesso destinatario");
+    });
+  }
+
   /* dati: risultato di KoinlyDetenzione.leggiTransazioni; opz: { anno, fuso, correzioni } */
   function calcola(dati, opz) {
-    var o = opz || {}, fuso = o.fuso || dati.fuso || "UTC", anno = o.anno, daVerificare = [];
+    var o = opz || {}, fuso = o.fuso || dati.fuso || "UTC", anno = o.anno, daVerificare = [], prestiti = [];
     /* Regole dello studio dal 1/1/2023 (art. 67 c. 1 lett. c-sexies TUIR): permute tra cripto, acquisti di cripto con stablecoin
        e scambi tra stablecoin sono «swap» non realizzativi: la cripto ricevuta prende il costo LIFO di quella ceduta.
        Restano cessioni le vendite contro valuta e contro stablecoin. Prima del 2023 le permute restano al valore del momento.
@@ -109,6 +133,8 @@
       var nel = anno ? g >= inizio && g <= fine : true;
       var registra = function (e) { e.data = g; e.riga = t.riga; e.tipoKoinly = t.tipo; e.tag = t.tag; if (nel) eventi.push(e); };
       var tag = etichetta(t.tag);
+      // prestiti ricevuti, in cripto o in valuta (servono agli indizi sui prelievi successivi)
+      if (/loan/.test(tag) && a && !da) prestiti.push({ ts: t.ts, chiave: a.valuta, q: D.decNum(a.q), valore: t.valore, wallet: t.walletA });
       // trasferimento abbinato tra wallet propri: gli strati restano; la differenza (commissione) si scarica
       if (t.abbinata) {
         if (t.trasfDiff > 0n && da) { var Pd = get(da); Pd.nMov++; var sd = scarica(Pd, t.trasfDiff); registra({ tipo: "commissione", chiave: da.valuta, simbolo: da.simbolo, q: t.trasfDiff, corrispettivo: 0, costo: sd.costo, scoperto: sd.scoperto, usati: sd.usati }); }
@@ -140,7 +166,7 @@
       var swap = !!(swapDal && g >= swapDal && da && a && !daF && !aF && !(stable(a.simbolo) && !stable(da.simbolo))), costoTrasf = 0;
       // corrispettivo / costo in euro dell'operazione
       var valoreOp = daF && da.simbolo === "EUR" ? -D.decNum(da.q) : aF && a.simbolo === "EUR" ? D.decNum(a.q) : t.valore;
-      var segnala = function (tipo, v) { daVerificare.push({ riga: t.riga, data: g, tipo: tipo, cripto: v.simbolo, chiave: v.valuta, q: D.decStr(v.q < 0n ? -v.q : v.q), wallet: tipo === "prelievo" ? t.walletDa : t.walletA, valore: t.valore, txHash: t.txHash, indirizzo: tipo === "prelievo" ? t.txDest : t.txSrc, correzione: corr0 }); };
+      var segnala = function (tipo, v) { daVerificare.push({ riga: t.riga, data: g, ts: t.ts, tipo: tipo, cripto: v.simbolo, chiave: v.valuta, q: D.decStr(v.q < 0n ? -v.q : v.q), wallet: tipo === "prelievo" ? t.walletDa : t.walletA, valore: t.valore, txHash: t.txHash, indirizzo: tipo === "prelievo" ? t.txDest : t.txSrc, correzione: corr0 }); };
       if (corr0 && corr0.azione === "valore" && corr0.importo != null) valoreOp = +corr0.importo;
       else if (!(valoreOp > 0) && (da || a) && !(daF && aF)) {
         nota("senzaValore", "Operazioni senza controvalore in euro nel file Koinly: costo o corrispettivo pari a zero, da verificare");
@@ -212,6 +238,7 @@
     // operazioni da verificare in tutto lo storico (incidono sui costi di ogni anno successivo), esclusi i token sospetti
     var spamK = {}; r.righe.forEach(function (x) { if (x.spam) spamK[x.chiave] = true; });
     r.daVerificare = daVerificare.filter(function (x) { return !spamK[x.chiave] && !D.motivoSpam({ chiave: x.chiave, mai: false }, false); });
+    indizi(r.daVerificare, prestiti);
     return r;
   }
 

@@ -95,4 +95,23 @@ t("Dal 2023 gli swap tra cripto sono neutri: la cripto ricevuta prende il costo 
   near(riga_(r, "ETH").costoCaricato, 5000 + 1500 + 2000);
   assert.ok(!C.rilevante(sw.tipo, 2023));
 });
+t("Indizi sui prelievi: invio di prova, uscita di cripto prese in prestito, destinazione assente", () => {
+  const T = [H,
+    riga(1, "2025-01-10 10:00:00", "trade", "", "Nexo;n", "3000.0", "EUR;11", "Nexo;n", "3000.0", "USDC;9", "3000.0"),
+    riga(2, "2025-07-18 18:05:03", "withdrawal", "", "Nexo;n", "10.0", "USDC;9", "", "0.0", "", "8.6"),
+    riga(3, "2025-07-18 18:10:46", "withdrawal", "", "Nexo;n", "488.567828", "USDC;9", "", "0.0", "", "420.23"),
+    riga(4, "2025-07-19 12:26:08", "deposit", "loan", "", "0.0", "", "Nexo;n", "2499.0", "USDC;9", "2150.0"),
+    riga(5, "2025-07-19 12:28:45", "withdrawal", "", "Nexo;n", "2500.0", "USDC;9", "", "0.0", "", "2150.44"),
+    riga(6, "2025-08-01 09:00:00", "deposit", "loan", "", "0.0", "", "Nexo;n", "1000.0", "USD;12", "900.0"),
+    riga(7, "2025-08-01 09:01:00", "trade", "", "Nexo;n", "1000.0", "USD;12", "Nexo;n", "1000.0", "USDC;9", "900.0"),
+    riga(8, "2025-08-01 09:05:00", "withdrawal", "", "Nexo;n", "1000.0", "USDC;9", "", "0.0", "", "905.0")
+  ].join("\n");
+  const dv = C.calcola(D.leggiTransazioni(T), { anno: 2025 }).daVerificare, per = (r) => dv.find((x) => x.riga === r);
+  assert.ok(per(3).prova && /invio di prova/.test(per(3).indizi.join()));
+  assert.ok(/preceduto da un probabile invio di prova/.test(per(4).indizi.join()));
+  assert.ok(per(6).prestito && /prestito/.test(per(6).indizi.join()));
+  assert.ok(!per(4).prestito && /destinazione e hash assenti/.test(per(4).indizi.join()));
+  // prestito in dollari subito cambiato in USDC e prelevato: riconosciuto dal controvalore in euro
+  assert.ok(per(9).prestito);
+});
 console.log("\n" + n + " prove superate");
