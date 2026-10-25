@@ -13,7 +13,6 @@
 
   var NON_CUSTODIAL = /(xpub|ypub|zpub|\b0x[0-9a-f]{3,}|bc1|\bledger|safepal|trezor|metamask|trust ?wallet|exodus|phantom|keplr|electrum|rabby|coinbase wallet|tangem|bitbox|cold|hardware|self.?custody|wallet \(|\.\.\.)/i;
   var CUSTODIAL = /(binance|coinbase(?! wallet)|kraken|bitpanda|crypto\.com|nexo|bybit|bitget|gate|kucoin|okx|young platform|relai|bitstamp|revolut|bitfinex|huobi|htx|mexc|conio|the rock|bitvavo|blockfi|celsius|paypal|n26|wirex|swissborg|uphold|bit2me|etoro|trade republic|scalable)/i;
-  var IBAN = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}(?:\s?[A-Z0-9]{1,3})?\b/g;
 
   function fiat(s) { return D.FIAT.indexOf(s) >= 0; }
   function tipoWallet(nome) {
@@ -113,13 +112,13 @@
       var p = provenienze[+m.g.slice(0, 4)]; var x = p[voce] || (p[voce] = { n: 0, valore: 0 }); x.n++; x.valore += t.valore || 0;
     });
 
-    // 2. movimentazione bancaria: versamenti e prelievi in valuta sugli exchange, con gli IBAN citati nelle descrizioni
-    var bonifici = [], iban = {};
+    // 2. movimentazione bancaria: versamenti e prelievi in valuta sugli exchange (gli estratti conto si leggono anonimizzati, banca.js)
+    var bonifici = [];
     X.mov.filter(nel).forEach(function (m) {
       var t = m.t; if (!t.voci.length || t.voci.some(function (v) { return !fiat(v.simbolo); })) return;
       var v = t.voci.filter(function (x) { return x.lato !== "fee"; })[0]; if (!v) return;
-      (t.descrizione.match(IBAN) || []).forEach(function (i) { iban[i.replace(/\s/g, "")] = true; });
-      bonifici.push({ data: m.g, intermediario: v.lato === "a" ? t.walletA : t.walletDa, verso: v.lato === "a" ? "versamento" : "prelievo", importo: Math.abs(D.decNum(v.q)), valuta: v.simbolo, descrizione: t.descrizione });
+      // privacy: la descrizione Koinly (può contenere banca e IBAN del cliente) non viene riportata
+      bonifici.push({ data: m.g, intermediario: v.lato === "a" ? t.walletA : t.walletDa, verso: v.lato === "a" ? "versamento" : "prelievo", importo: Math.abs(D.decNum(v.q)), valuta: v.simbolo });
     });
     var bonificiSintesi = {};
     bonifici.forEach(function (b) { var k = b.data.slice(0, 4) + "|" + b.intermediario + "|" + b.valuta; var x = bonificiSintesi[k] || (bonificiSintesi[k] = { anno: +b.data.slice(0, 4), intermediario: b.intermediario, valuta: b.valuta, versamenti: 0, prelievi: 0, n: 0 }); x.n++; x[b.verso === "versamento" ? "versamenti" : "prelievi"] += b.importo; });
@@ -200,7 +199,7 @@
 
     return { anni: anni, fuso: X.fuso,
       d1: { acquisti: Object.keys(acquisti).map(function (k) { var x = acquisti[k]; x.valute = Object.keys(x.valute).join(", "); x.cripto = Object.keys(x.cripto).join(", "); return x; }).sort(function (a, b) { return a.anno - b.anno || b.importo - a.importo; }), provenienze: provenienze },
-      d2: { movimenti: bonifici, sintesi: Object.keys(bonificiSintesi).map(function (k) { return bonificiSintesi[k]; }), iban: Object.keys(iban) },
+      d2: { movimenti: bonifici, sintesi: Object.keys(bonificiSintesi).map(function (k) { return bonificiSintesi[k]; }) },
       d3: { wallet: elencoWallet, alleDate: walletAlleDate, chiavi: chiavi },
       d4: { transazioni: transazioni },
       d5: { alleDate: walletAlleDate },

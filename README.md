@@ -43,6 +43,12 @@ Uscite: tabella a video con i periodi; Excel (fogli «Righi RW» e «Riepilogo p
   - operazione senza controvalore: valore inserito a mano.
 - **Salvataggio:** correzioni e attribuzioni si salvano e si ricaricano in un file JSON.
 - **Uscite:** riscontro con i costi dei report Koinly; Excel (costi, strati, cessioni, correzioni) e PDF. Il quadro RT usa questi costi come fonte predefinita.
+- **Estratti conto bancari in PDF, anonimizzati alla lettura** (`banca.js`):
+  - si tengono solo data, importo, segno ed exchange dei movimenti con piattaforme di cripto-attività;
+  - tutte le altre righe sono scartate e se ne conta solo il numero;
+  - nomi, IBAN, indirizzi e causali non vengono mai conservati né mostrati;
+  - i movimenti si riscontrano con versamenti, prelievi, acquisti e vendite in euro registrati in Koinly.
+- **Privacy nei report:** le descrizioni Koinly dei movimenti in euro, che possono contenere banca e IBAN del cliente, non vengono riportate.
 
 ## 3. Questionario dell'Agenzia delle Entrate
 
@@ -115,6 +121,7 @@ Scheda «Guida» per il cliente (`guida.js`): quali file Koinly scaricare, come 
 | `lettura.js` | Lettura dei report di saldi Koinly (CSV e PDF, italiano e inglese) |
 | `detenzione.js` | Transazioni, giorni di detenzione, periodi, token sospetti, riscontri |
 | `ivaca.js` | Valori dei periodi e imposta |
+| `banca.js` | Lettura anonimizzata degli estratti conto e riscontro con Koinly |
 | `costi.js` | Costi di carico LIFO globali dall'origine, abbinamento dei trasferimenti, correzioni dello studio |
 | `questionario.js` | Elementi di risposta al questionario dell'Agenzia, wallet, chiavi pubbliche e indirizzi |
 | `sanzioni.js` | Sanzioni, frazioni di ravvedimento, interessi legali, scadenze per anno |
@@ -132,6 +139,7 @@ node test/detenzione.test.js
 node test/sanzioni.test.js
 node test/modelli.test.js
 node test/costi.test.js
+node test/banca.test.js
 ```
 
 I dati delle prove sono inventati. I file reali dei clienti vanno solo nella cartella `campioni/`, esclusa da Git.

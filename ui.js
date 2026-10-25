@@ -2,7 +2,7 @@
 /* Koinly Tools · interfaccia. I file caricati restano nel browser: non vengono salvati né inviati in rete. */
 (function () {
   "use strict";
-  var L = window.KoinlyLettura, D = window.KoinlyDetenzione, I = window.KoinlyIvaca, Z = window.KoinlySanzioni, MOD = window.KoinlyModelli, C = window.KoinlyCosti, QZ = window.KoinlyQuestionario;
+  var L = window.KoinlyLettura, D = window.KoinlyDetenzione, I = window.KoinlyIvaca, Z = window.KoinlySanzioni, MOD = window.KoinlyModelli, C = window.KoinlyCosti, QZ = window.KoinlyQuestionario, BK = window.KoinlyBanca;
   if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = "comune/vendor/pdf.worker.min.js";
   var app = document.getElementById("app");
 
@@ -352,6 +352,7 @@
       '<div class="scroll"><table class="det"><thead><tr><th>Data</th><th>Tipo</th><th>Cripto</th><th class="n">Quantità</th><th>Wallet</th><th class="n">Valore Koinly</th><th>Indirizzo / TxHash</th><th>Correzione</th></tr></thead><tbody>' +
       filtrate.slice(0, 150).map(function (v) { return "<tr><td>" + it(v.data) + "</td><td>" + esc(v.tipo) + "</td><td>" + esc(v.cripto) + '</td><td class="n">' + Q(v.q) + "</td><td>" + esc(v.wallet || "") + '</td><td class="n">' + E(v.valore) + '</td><td class="small" style="word-break:break-all;max-width:220px">' + esc(v.indirizzo || "") + (v.txHash ? "<br>" + esc(v.txHash) : "") + "</td><td>" + selectAzione(v) + "</td></tr>"; }).join("") +
       "</tbody></table></div>" + (filtrate.length > 150 ? '<p class="small">Mostrate 150 operazioni su ' + filtrate.length + ": restringete i filtri o usate la correzione in blocco.</p>" : "") + "</div>";
+    h += sezioneBanca();
     // riepilogo per cripto
     h += '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Costi per cripto · ' + anno + '</h3><div class="toolbar noprint"><button type="button" class="btn" id="excelCosti">Scarica Excel</button><button type="button" class="btn gold" id="stampaCosti">Stampa / PDF</button><button type="button" class="btn gold" id="stampaMemoria">Memoria finale</button></div></div>' +
       '<div class="scroll"><table class="det"><thead><tr><th>Cripto</th><th class="n">Quantità 1/1</th><th class="n">Costo 1/1</th><th class="n">Koinly 1/1</th><th class="n">Costo caricato</th><th class="n">Costo scaricato</th><th class="n">Corrispettivi</th><th class="n">Quantità 31/12</th><th class="n">Costo 31/12</th><th class="n">Koinly 31/12</th><th class="n">Strati</th></tr></thead><tbody>' +
@@ -400,6 +401,53 @@
       "<p><b>Per il quadro RT " + anno + "</b> (" + (anno >= 2023 ? "cessioni contro valuta e contro stablecoin" : "tutte le cessioni") + "): corrispettivi " + E(tv.corrispettivi) + ", costi " + E(tv.costi) + ", plusvalenza " + E(tv.corrispettivi - tv.costi) + ".</p>" +
       (r.avvisi.length ? "<h2>Avvisi</h2><ul class=\"avvisi\">" + r.avvisi.map(function (a) { return "<li>" + esc(a) + "</li>"; }).join("") + "</ul>" : "") +
       '<p class="nota">Il dettaglio di strati, cessioni e correzioni è nel file Excel allegato. I calcoli possono differire da Koinly per le correzioni dello studio e per il metodo LIFO globale.</p>' + firma());
+  }
+
+  /* ---------- estratti conto bancari, anonimizzati alla lettura ---------- */
+  S.banca = { movimenti: [], lette: 0, scartate: 0, file: 0 };
+  async function caricaBanca(files) {
+    for (var i = 0; i < files.length; i++) {
+      try {
+        var r = BK.leggi(await testoPdf(files[i]), files[i].name);
+        S.banca.movimenti = S.banca.movimenti.concat(r.movimenti); S.banca.lette += r.righeLette; S.banca.scartate += r.righeScartate; S.banca.file++;
+      } catch (e) { S.banca.errore = "Un file non è leggibile come PDF con testo."; }
+    }
+    S.banca.movimenti.sort(function (a, b) { return a.data < b.data ? -1 : 1; });
+    render();
+  }
+  // versamenti e prelievi in euro sugli exchange registrati in Koinly
+  function movKoinlyValuta() {
+    if (!S.tx) return [];
+    var fiat = function (v) { return D.FIAT.indexOf(v.simbolo) >= 0; };
+    return S.tx.dati.movimenti.map(function (t) {
+      var da = t.voci.filter(function (x) { return x.lato === "da"; })[0], a = t.voci.filter(function (x) { return x.lato === "a"; })[0], g = D.giorno(t.ts, S.fuso);
+      if (t.voci.every(fiat)) { var v = da || a; return v ? { data: g, intermediario: (v.lato === "a" ? t.walletA : t.walletDa) || "", verso: v.lato === "a" ? "versamento" : "prelievo", importo: Math.abs(D.decNum(v.q)) } : null; }
+      // acquisti e vendite regolati direttamente in euro (piattaforme che addebitano o accreditano il conto senza versamento separato)
+      if (da && a && fiat(da) && !fiat(a)) return { data: g, intermediario: t.walletDa || t.walletA || "", verso: "acquisto", importo: Math.abs(D.decNum(da.q)) };
+      if (da && a && !fiat(da) && fiat(a)) return { data: g, intermediario: t.walletA || t.walletDa || "", verso: "vendita", importo: Math.abs(D.decNum(a.q)) };
+      return null;
+    }).filter(Boolean);
+  }
+  function bancaRiscontrata() {
+    var b = S.banca.movimenti.map(function (x) { return Object.assign({}, x); });
+    BK.riscontra(b, movKoinlyValuta());
+    return b;
+  }
+  function bancaPerAnni(anni) {
+    if (!S.banca.movimenti.length) return '<p class="small">Estratti conto non ancora caricati (scheda «Costi di carico»): se ne leggono solo i movimenti con gli exchange, anonimizzati.</p>';
+    var b = bancaRiscontrata().filter(function (x) { return !anni || anni.indexOf(+x.data.slice(0, 4)) >= 0; }), g = {};
+    b.forEach(function (x) { var k = x.data.slice(0, 4) + "|" + x.controparte; var y = g[k] || (g[k] = { anno: x.data.slice(0, 4), cp: x.controparte, uscite: 0, entrate: 0, n: 0, ok: 0 }); y.n++; if (x.riscontro) y.ok++; if (x.segno < 0) y.uscite += x.importo; else y.entrate += x.importo; });
+    return "<p>Dagli estratti conto (anonimizzati: solo date, importi ed exchange) risultano:</p>" + tab(["Anno", "Exchange", "n:Movimenti", "n:Bonifici verso l'exchange", "n:Accrediti dall'exchange", "n:Riscontrati in Koinly"], Object.keys(g).map(function (k) { var y = g[k]; return [y.anno, esc(y.cp), y.n, E(y.uscite), E(y.entrate), y.ok + " / " + y.n]; }));
+  }
+  function sezioneBanca() {
+    var B = S.banca, b = bancaRiscontrata(), kSenza = BK.riscontra(S.banca.movimenti.map(function (x) { return Object.assign({}, x); }), movKoinlyValuta()).koinlySenzaBanca;
+    return '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Estratti conto bancari (anonimizzati)</h3>' +
+      '<p class="small">Caricate gli estratti conto in PDF. Alla lettura si tengono <b>solo</b> data, importo e exchange dei movimenti verso o da piattaforme di cripto-attività; tutte le altre righe (spese, stipendi, utenze) sono scartate e non vengono mostrate né salvate. Anche per i movimenti tenuti non si conservano nomi, IBAN, indirizzi o causali. I file restano in questo browser.</p>' +
+      '<label class="f"><span class="t">Estratti conto (PDF con testo)</span><input type="file" multiple accept=".pdf" data-banca></label>' +
+      (B.errore ? '<p class="small" style="color:var(--hi)">' + esc(B.errore) + "</p>" : "") +
+      (B.file ? '<p class="small">' + B.file + " file letti: " + B.lette + " movimenti, di cui " + B.scartate + " scartati perché non riguardano cripto-attività; " + B.movimenti.length + " tenuti. " + '<button type="button" class="btnlink" id="svuotaBanca">Togli gli estratti conto</button></p>' +
+        tab(["Data", "Movimento", "n:Importo", "Riscontro con Koinly"], b.map(function (x) { return [it(x.data), esc(x.descrizione), E(x.segno * x.importo), x.riscontro ? "✓ " + esc(x.riscontro.verso) + " del " + it(x.riscontro.data) + " su " + esc(x.riscontro.intermediario) : '<span style="color:var(--mid)">non trovato in Koinly</span>']; }), 150) +
+        (kSenza.length ? '<p class="small">' + kSenza.length + " versamenti o prelievi in euro registrati in Koinly non trovano corrispondenza negli estratti caricati: possono riguardare altri conti o periodi non caricati.</p>" : "") : "") + "</div>";
   }
 
   /* ---------- questionario dell'Agenzia delle Entrate e dichiarazione sui wallet ---------- */
@@ -453,8 +501,8 @@
     // 2
     dom(1, '<p class="small hi">Gli estratti conto vanno richiesti al cliente e allegati: Koinly registra solo i movimenti in valuta sugli exchange collegati.</p>' +
       (q.d2.sintesi.length ? tab(["Anno", "Intermediario", "Valuta", "n:Movimenti", "n:Versamenti", "n:Prelievi"], q.d2.sintesi.map(function (x) { return [x.anno, esc(x.intermediario), x.valuta, x.n, E(x.versamenti), E(x.prelievi)]; })) : "<p>Nessun movimento in valuta sugli exchange nel periodo.</p>") +
-      (q.d2.iban.length ? "<p>Conti citati nelle descrizioni di Koinly: " + q.d2.iban.map(esc).join(", ") + ".</p>" : "") +
-      (q.d2.movimenti.length ? tab(["Data", "Intermediario", "Movimento", "n:Importo", "Valuta", "Descrizione Koinly"], q.d2.movimenti.map(function (b) { return [it(b.data), esc(b.intermediario || ""), b.verso, E(b.importo), b.valuta, esc(b.descrizione)]; }), M) : ""));
+      (q.d2.movimenti.length ? tab(["Data", "Intermediario", "Movimento", "n:Importo", "Valuta"], q.d2.movimenti.map(function (b) { return [it(b.data), esc(b.intermediario || ""), b.verso, E(b.importo), b.valuta]; }), M) : "") +
+      bancaPerAnni(q.anni));
     // 3: wallet, chiavi, attribuzione
     var ch = q.d3.chiavi;
     dom(2, "<p>Wallet registrati in Koinly e indirizzi esterni dei movimenti non abbinati. Per ciascuno il cliente indica se è suo: la dichiarazione sostitutiva elenca solo quelli marcati «mio».</p>" +
@@ -524,7 +572,8 @@
     var foglio = function (nome, titolo, intest, righe, larg) { return { nome: nome, colonne: larg, righe: [[{ v: titolo, s: "titolo" }], []].concat([int(intest)]).concat(righe), orizzontale: true }; };
     var fogli = [
       foglio("1 Acquisti", "1. " + DOMANDE[0], ["Anno", "Intermediario", "Tipologia", "Operazioni", "Importo", "Valute", "Cripto"], q.d1.acquisti.map(function (x) { return [x.anno, x.intermediario, x.tipo, x.n, eu(x.importo), x.valute, x.cripto]; }), [8, 30, 20, 10, 14, 10, 30]),
-      foglio("2 Banca", "2. " + DOMANDE[1], ["Data", "Intermediario", "Movimento", "Importo", "Valuta", "Descrizione Koinly"], q.d2.movimenti.map(function (b) { return [it(b.data), b.intermediario || "", b.verso, eu(b.importo), b.valuta, b.descrizione]; }), [12, 26, 12, 14, 8, 60]),
+      foglio("2 Exchange in euro", "2. " + DOMANDE[1] + " · movimenti in valuta sugli exchange (Koinly)", ["Data", "Intermediario", "Movimento", "Importo", "Valuta"], q.d2.movimenti.map(function (b) { return [it(b.data), b.intermediario || "", b.verso, eu(b.importo), b.valuta]; }), [12, 26, 12, 14, 8]),
+      foglio("2 Banca anonimizzata", "2. Estratti conto: solo movimenti con exchange, anonimizzati", ["Data", "Movimento", "Importo", "Riscontro Koinly"], bancaRiscontrata().filter(function (b) { return q.anni.indexOf(+b.data.slice(0, 4)) >= 0; }).map(function (b) { return [it(b.data), b.descrizione, eu(b.segno * b.importo), b.riscontro ? b.riscontro.verso + " " + it(b.riscontro.data) + " su " + b.riscontro.intermediario : "non trovato in Koinly"]; }), [12, 36, 14, 50]),
       foglio("3 Wallet e chiavi", "3. " + DOMANDE[2], ["Wallet / indirizzo", "Genere", "Tipologia", "Chiave pubblica", "Indirizzi", "Primo utilizzo", "Ultimo utilizzo", "Movimenti", "Attribuzione"], q.d3.chiavi.map(function (c) { return [c.etichetta, c.genere, c.tipo, c.chiavePubblica, c.indirizzi.join(" "), it(c.primo), it(c.ultimo), c.n, attribuzione(c)]; }), [40, 16, 22, 30, 50, 12, 12, 10, 14]),
       foglio("3-5 Saldi wallet", "3 e 5. Saldi per wallet alle date", ["Data", "Wallet", "Tipologia", "Cripto", "Quantità", "Valore", "Fonte del prezzo"], [].concat.apply([], q.d3.alleDate.map(function (x) { return x.righe.map(function (r) { return [x.data, r.wallet, r.tipo, r.cripto, +r.quantita, r.valore == null ? "n.d." : eu(r.valore), r.fontePrezzo]; }); })), [12, 40, 20, 10, 20, 14, 16]),
       foglio("4 Transazioni", "4. " + DOMANDE[3], ["Data", "Ora UTC", "Tipo", "Etichetta", "Wallet di uscita", "Quantità", "Cripto", "Wallet di entrata", "Quantità", "Cripto", "Commissione", "Valore €", "TxHash", "Indirizzo origine", "Indirizzo destinazione"], q.d4.transazioni.map(function (t) { return [it(t.data), t.ora, t.tipo, t.tag, t.walletDa || "", t.qDa ? +t.qDa : null, t.valDa, t.walletA || "", t.qA ? +t.qA : null, t.valA, t.fee, eu(t.valore), t.txHash, t.txSrc, t.txDest]; }), [12, 10, 12, 14, 30, 16, 8, 30, 16, 8, 16, 12, 40, 40, 40]),
@@ -573,6 +622,7 @@
       (corr.length ? '<table class="det"><thead><tr><th>Operazione → correzione</th><th class="n">Numero</th><th class="n">Valore Koinly</th><th>Motivi indicati</th></tr></thead><tbody>' +
         Object.keys(gruppi).map(function (k) { var g = gruppi[k]; return "<tr><td>" + esc(k) + '</td><td class="n">' + g.n + '</td><td class="n">' + E(g.valore) + "</td><td>" + esc(Object.keys(g.motivi).join("; ") || "—") + "</td></tr>"; }).join("") + "</tbody></table>" : "<p>Non sono state apportate correzioni.</p>") +
       (dv.length - corr.length ? "<p>Restano " + (dv.length - corr.length) + " operazioni non corrette: sono state trattate con il criterio predefinito (depositi al valore del giorno, prelievi come uscite senza corrispettivo) e andrebbero documentate.</p>" : "") +
+      (S.banca.movimenti.length ? (function () { var bb = bancaRiscontrata(); return "<p><b>Riscontro bancario.</b> Dagli estratti conto del contribuente, letti in forma anonimizzata (solo date, importi ed exchange; nessun altro movimento né dato personale), risultano " + bb.length + " movimenti con piattaforme di cripto-attività, di cui " + bb.filter(function (x) { return x.riscontro; }).length + " trovano corrispondenza nei versamenti e prelievi in euro registrati in Koinly. I bonifici verso gli exchange documentano la provenienza dei fondi usati per gli acquisti; gli accrediti, l'incasso delle vendite.</p>"; })() : "") +
       "<h2>4. Differenze rispetto ai report Koinly senza modifiche</h2>";
     anni.forEach(function (a) {
       var rc = conCorr[a], rs = senzaCorr[a], k = koinlyRT(a), cf = rc.confronto || {};
@@ -785,6 +835,7 @@
     if (t.matches("[data-cf]")) { var cf = t.getAttribute("data-cf"); S.costi.filtro[cf] = t.type === "checkbox" ? t.checked : t.value; render(); return; }
     if (t.matches("[data-cs]")) { var cs = t.getAttribute("data-cs"); S.costi[cs] = cs === "anno" ? +t.value : t.value; render(); return; }
     if (t.matches("[data-lavoro]") && t.files[0]) { caricaLavoro(t.files[0]); return; }
+    if (t.matches("[data-banca]") && t.files.length) { caricaBanca(t.files); return; }
     if (t.matches("[data-qanno]")) { var qa = +t.getAttribute("data-qanno"); S.quest.anni = S.quest.anni.filter(function (x) { return x !== qa; }); if (t.checked) S.quest.anni.push(qa); S.quest.anni.sort(); render(); return; }
     if (t.matches("[data-qrep]") && t.files.length) { caricaReportQuest(t.files); return; }
     if (t.matches("[data-flag]")) { S.quest.flag[t.getAttribute("data-flag")] = t.value; render(); return; }
@@ -811,6 +862,7 @@
     else if (t.id === "stampaSanz") stampaSanzioni();
     else if (t.id === "stampaRW") stampaRW();
     else if (t.id === "salvaLavoro") salvaLavoro();
+    else if (t.id === "svuotaBanca") { S.banca = { movimenti: [], lette: 0, scartate: 0, file: 0 }; render(); }
     else if (t.id === "excelCosti") excelCosti();
     else if (t.id === "stampaCosti") stampaCosti();
     else if (t.id === "excelQuest") excelQuest();
