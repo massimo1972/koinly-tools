@@ -2,12 +2,12 @@
 /* Koinly Tools · interfaccia. I file caricati restano nel browser: non vengono salvati né inviati in rete. */
 (function () {
   "use strict";
-  var L = window.KoinlyLettura, D = window.KoinlyDetenzione, I = window.KoinlyIvaca, Z = window.KoinlySanzioni, MOD = window.KoinlyModelli, C = window.KoinlyCosti, QZ = window.KoinlyQuestionario, BK = window.KoinlyBanca;
+  var L = window.KoinlyLettura, D = window.KoinlyDetenzione, I = window.KoinlyIvaca, Z = window.KoinlySanzioni, MOD = window.KoinlyModelli, C = window.KoinlyCosti, QZ = window.KoinlyQuestionario, BK = window.KoinlyBanca, ET = window.KoinlyEtoro;
   if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = "comune/vendor/pdf.worker.min.js";
   var app = document.getElementById("app");
 
-  var TABS = ["Giorni di detenzione e IVACA", "Costi di carico", "Questionario AdE", "Sanzioni RW e RT", "Quadri RW, RT e F24", "Guida"];
-  var VISTE = ["ivaca", "costi", "questionario", "sanzioni", "modelli", "guida"];
+  var TABS = ["Giorni di detenzione e IVACA", "Costi di carico", "Questionario AdE", "Sanzioni RW e RT", "Quadri RW, RT e F24", "eToro e broker esteri", "Guida"];
+  var VISTE = ["ivaca", "costi", "questionario", "sanzioni", "modelli", "etoro", "guida"];
   var S = { tab: 0, tx: null, inizio: null, fine: null, anno: null, fuso: "UTC", quota: 100, inclusi: {}, valori: {}, aperti: {}, spamAperti: false, errore: {} };
   var calcolo = null, ivaca = null;
 
@@ -102,7 +102,7 @@
   function viewIvaca() {
     var h = '<h2>Giorni di detenzione e IVACA</h2><p class="lead">Dalle transazioni Koinly si ricostruiscono, cripto per cripto e sul totale di tutti i wallet, i giorni di detenzione dell\'anno e i periodi a quantità costante; con il valore di fine anno si calcola l\'imposta sul valore delle cripto-attività (quadro RW, col. 33).</p>' +
       '<div class="banner beta-avviso"><strong>Versione beta</strong><p>Koinly Tools è in fase di test: i risultati vanno verificati con lo studio prima di usarli per la dichiarazione o per qualsiasi versamento. Segnalazioni e suggerimenti sono benvenuti.</p></div>' +
-      '<div class="banner"><strong>Riservatezza</strong><p>I file restano in questo browser: non vengono salvati né inviati in rete. Non sapete quali file caricare? <button type="button" class="btnlink" data-tab="5">Leggete la guida</button>.</p></div>' +
+      '<div class="banner"><strong>Riservatezza</strong><p>I file restano in questo browser: non vengono salvati né inviati in rete. Non sapete quali file caricare? <button type="button" class="btnlink" data-tab="6">Leggete la guida</button>.</p></div>' +
       '<div class="panel"><div class="slots">' +
       slot("tx", "Transazioni", true, "CSV di Koinly con tutte le transazioni: «backup_transactions_koinly.csv» oppure «transaction history».", ".csv,text/csv") +
       slot("inizio", "Saldi a inizio anno", true, "«Beginning of year holdings» in CSV (o il report di fine dell'anno precedente): quantità e valori al 1° gennaio.", ".csv,.pdf") +
@@ -310,11 +310,11 @@
   };
   function scaricaFile(nome, blob) { var l = document.createElement("a"); l.href = URL.createObjectURL(blob); l.download = nome; document.body.appendChild(l); l.click(); setTimeout(function () { URL.revokeObjectURL(l.href); l.remove(); }, 1000); }
   function salvaLavoro() {
-    var dati = { programma: "Koinly Tools", versione: 1, salvato: new Date().toISOString(), transazioni: S.tx ? S.tx.nome : "", correzioni: S.correzioni, attribuzioni: S.quest.flag, cliente: S.quest.cliente };
+    var dati = { programma: "Koinly Tools", versione: 1, salvato: new Date().toISOString(), transazioni: S.tx ? S.tx.nome : "", correzioni: S.correzioni, attribuzioni: S.quest.flag, cliente: S.quest.cliente, altriRedditi: S.altri };
     scaricaFile("koinly-tools-lavoro.json", new Blob([JSON.stringify(dati, null, 1)], { type: "application/json" }));
   }
   async function caricaLavoro(f) {
-    try { var j = JSON.parse(await f.text()); S.correzioni = j.correzioni || {}; S.quest.flag = j.attribuzioni || {}; S.quest.cliente = Object.assign(S.quest.cliente, j.cliente || {}); S.lavoroCaricato = f.name + (j.transazioni ? " (transazioni: " + j.transazioni + ")" : ""); }
+    try { var j = JSON.parse(await f.text()); S.correzioni = j.correzioni || {}; S.quest.flag = j.attribuzioni || {}; S.quest.cliente = Object.assign(S.quest.cliente, j.cliente || {}); if (j.altriRedditi) { S.altri = j.altriRedditi; altroId = S.altri.reduce(function (m, x) { return Math.max(m, x.id + 1); }, 1); } S.lavoroCaricato = f.name + (j.transazioni ? " (transazioni: " + j.transazioni + ")" : ""); }
     catch (e) { S.lavoroCaricato = "File non valido: " + e.message; }
     render();
   }
@@ -731,6 +731,10 @@
   /* ---------- quadri del modello Redditi PF e F24 ---------- */
   var TITOLI = { 1: "proprietà", 2: "usufrutto", 3: "nuda proprietà", 4: "altro" };
   S.modelli = { titolo: 1, sogliaPeriodi: 20 };
+  // altri redditi inseriti a mano (broker esteri come eToro): quadro RT al 26% e quadro RM
+  S.altri = [];
+  var altroId = 1;
+  function nuovoAltro() { var a = new Date().getFullYear() - 1; S.altri.push({ id: altroId++, anno: a, fonte: "eToro", corr: "", costi: "", minus: "", lettera: "H", stato: "", lordo: "" }); }
   function tabellaRW(q) {
     var testa = '<thead><tr><th>Modulo / rigo</th><th>Cripto · periodo</th><th class="n">Col. 1<br>titolo</th><th class="n">Col. 3<br>codice</th><th class="n">Col. 4<br>Stato</th><th class="n">Col. 5<br>quota %</th><th class="n">Col. 6<br>criterio</th><th class="n">Col. 7<br>valore iniziale</th><th class="n">Col. 8<br>valore finale</th><th class="n">Col. 10<br>giorni</th><th class="n">Col. 12<br>credito</th><th class="n">Col. 16<br>solo monit.</th><th class="n">Col. 33<br>imposta</th><th class="n">Col. 34<br>dovuta</th></tr></thead>';
     var righe = q.righi.map(function (x) {
@@ -762,12 +766,48 @@
     h += '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Quadro RT · cripto-attività</h3>' + (S.sanz.anni.length ? '<button type="button" class="btn gold" id="stampaRT">Stampa / PDF quadro RT</button>' : "") + "</div>";
     h += S.sanz.anni.length ? S.sanz.anni.map(function (a) { return tabellaRT(a); }).join("") : '<p class="muted">Il quadro RT si compila dagli anni inseriti nella pagina Sanzioni (corrispettivi delle vendite e costi di acquisto).</p>';
     h += "</div>";
+    h += pannelloAltri();
     // F24
     var f = MOD.f24(calcoliSanzioni());
     h += '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Modello F24 · ravvedimento</h3>' + (f.righe.length ? '<button type="button" class="btn gold" id="stampaF24">Stampa / PDF modello F24</button>' : "") + "</div>" +
       '<div class="grid2" style="margin:10px 0"><label class="f"><span class="t">Codice fiscale del contribuente</span><input type="text" data-modt="cf" value="' + esc(S.modelli.cf || "") + '" maxlength="16" autocomplete="off"></label><label class="f"><span class="t">Cognome e nome</span><input type="text" data-modt="nome" value="' + esc(S.modelli.nome || "") + '" autocomplete="off"></label></div>' +
       (f.righe.length ? tabellaF24(f) : '<p class="muted">L\'F24 si compila dai ravvedimenti della pagina Sanzioni.</p>') + "</div>";
     return h;
+  }
+  /* quadri RT (sezione al 26%) e RM degli altri redditi, raggruppati per anno */
+  function quadriAltri() {
+    var anni = S.altri.map(function (x) { return x.anno; }).filter(function (x, i, l) { return x && l.indexOf(x) === i; }).sort();
+    return anni.map(function (a) {
+      var el = S.altri.filter(function (x) { return x.anno === a; }), som = function (k) { return el.reduce(function (s, x) { return s + (+x[k] || 0); }, 0); };
+      var rt = som("corr") || som("costi") ? MOD.quadroRT26(a, som("corr"), som("costi"), { minusPrecedenti: som("minus") }) : null;
+      var rm = MOD.quadroRM(a, el.map(function (x) { return { lettera: x.lettera, stato: x.stato, lordo: +x.lordo || 0 }; }));
+      return { anno: a, fonti: el.map(function (x) { return x.fonte; }).filter(Boolean).join(", "), rt: rt, rm: rm.righi.length ? rm : null };
+    });
+  }
+  function tabellaAltri(q) {
+    var h = "";
+    if (q.rt) h += "<h4>Anno " + q.anno + " · " + esc(q.rt.modello) + (q.fonti ? ' · <span class="u">' + esc(q.fonti) + "</span>" : "") + "</h4>" + '<table class="det" style="width:auto;min-width:60%"><thead><tr><th>Rigo</th><th>Col.</th><th>Descrizione</th><th class="n">Importo</th></tr></thead><tbody>' +
+      q.rt.righi.map(function (x) { return "<tr><td>" + x.rigo + "</td><td>" + (x.col || "") + "</td><td>" + esc(x.descrizione) + '</td><td class="n">' + E(x.valore, 0) + "</td></tr>"; }).join("") + "</tbody></table>" +
+      (q.rt.minusvalenzaDaRiportare ? '<p class="small">Minusvalenza da riportare negli anni successivi (fino al quarto): ' + E(q.rt.minusvalenzaDaRiportare, 0) + ", rigo " + q.rt.rigoMinus + ".</p>" : "") + (q.rt.imposta ? '<p class="small">Codice tributo F24 ' + q.rt.codiceTributo + ".</p>" : "");
+    if (q.rm) h += "<h4>Anno " + q.anno + " · " + esc(q.rm.modello) + "</h4>" + '<table class="det" style="width:auto;min-width:60%"><thead><tr><th>Rigo</th><th>Col. 1 · tipo</th><th>Col. 2 · Stato</th><th class="n">Col. 3 · reddito lordo</th><th class="n">Col. 4 · aliquota</th><th class="n">Col. ' + q.rm.righi[0].colImposta + " · imposta</th></tr></thead><tbody>" +
+      q.rm.righi.map(function (x) { return "<tr><td>" + q.rm.rigo + "</td><td>" + esc(x.lettera) + "</td><td>" + esc(x.stato || "—") + '</td><td class="n">' + E(x.lordo, 0) + '</td><td class="n">26</td><td class="n">' + E(x.imposta, 0) + "</td></tr>"; }).join("") + "</tbody></table>" +
+      '<p class="small">Reddito al lordo delle ritenute subite all\'estero, senza credito d\'imposta. Codice tributo F24 ' + q.rm.codiceTributo + ".</p>";
+    return h;
+  }
+  function pannelloAltri() {
+    var LET = { H: "H · dividendi esteri", G: "G · interessi su conti bancari esteri", B: "B · proventi di OICR armonizzati (ETF UCITS)", I: "I · altri redditi di capitale esteri" };
+    var h = '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Quadri RT e RM · altri redditi (broker esteri)</h3><div class="toolbar">' + (S.altri.length ? '<button type="button" class="btn gold" id="stampaAltri">Stampa / PDF</button>' : "") + '<button type="button" class="btn ghost" id="aggiungiAltro">Aggiungi un anno o una fonte</button></div></div>' +
+      '<p class="small">Per i redditi di intermediari esteri come eToro, da inserire a mano: plusvalenze e differenziali di azioni e CFD (quadro RT, sezione al 26%) e dividendi o interessi esteri senza ritenuta italiana (quadro RM). Le cripto-attività restano nel quadro RT delle cripto. I dati letti dal rendiconto eToro sono nella scheda <button type="button" class="btnlink" data-tab="5">eToro e broker esteri</button>.</p>';
+    if (!S.altri.length) return h + "</div>";
+    var inp = function (x, k, ph) { return '<input class="num" type="number" step="0.01" data-alt="' + x.id + '" data-k="' + k + '" value="' + esc(x[k]) + '" placeholder="' + (ph || "0") + '">'; };
+    h += '<div class="scroll"><table class="det"><thead><tr><th>Anno</th><th>Fonte</th><th class="n">RT · corrispettivi</th><th class="n">RT · costi</th><th class="n">Minusvalenze anni precedenti</th><th>RM · tipo</th><th>RM · codice Stato</th><th class="n">RM · reddito lordo</th><th></th></tr></thead><tbody>' +
+      S.altri.map(function (x) { return '<tr><td><input class="num" type="number" min="2015" max="2100" step="1" data-alt="' + x.id + '" data-k="anno" value="' + x.anno + '" style="width:80px"></td><td><input type="text" data-alt="' + x.id + '" data-k="fonte" value="' + esc(x.fonte) + '" style="width:110px"></td><td>' + inp(x, "corr") + "</td><td>" + inp(x, "costi") + "</td><td>" + inp(x, "minus") + '</td><td><select data-alt="' + x.id + '" data-k="lettera">' + Object.keys(LET).map(function (k) { return '<option value="' + k + '"' + (x.lettera === k ? " selected" : "") + ">" + LET[k] + "</option>"; }).join("") + '</select></td><td><input type="text" data-alt="' + x.id + '" data-k="stato" value="' + esc(x.stato) + '" placeholder="es. 069" style="width:80px"></td><td>' + inp(x, "lordo") + '</td><td><button type="button" class="btnlink small" data-toglialtro="' + x.id + '">Togli</button></td></tr>'; }).join("") +
+      "</tbody></table></div>" + '<p class="small">Corrispettivi e costi in euro, ciascuno al cambio del giorno dell\'operazione (art. 9 c. 2 TUIR); per i CFD gli oneri (commissioni overnight) vanno nei costi. Più righe dello stesso anno si sommano nel quadro RT; nel quadro RM si fa un rigo per tipo e Stato. Codici Stato: elenco del fascicolo 1 (es. 069 Stati Uniti, 013 Canada, 040 Irlanda, 031 Regno Unito).</p>' +
+      quadriAltri().map(tabellaAltri).join("") + "</div>";
+    return h;
+  }
+  function stampaAltri() {
+    apriStampa(intestazione("Modello Redditi PF · Quadri RT e RM · altri redditi") + datiContribuente() + quadriAltri().map(tabellaAltri).join("") + firma());
   }
   function tabellaRT(a) {
     var x = rtAnno(a), q = MOD.quadroRT(a.anno, x.corrispettivi, x.costi, {});
@@ -818,6 +858,44 @@
     var st = window.KoinlyStudio || {};
     return '<p class="small diritti">© ' + new Date().getFullYear() + " " + esc(st.professionista) + ". Il codice del programma è rilasciato con licenza AGPL-3.0; nome, dati, testi e contenuti dello studio: tutti i diritti riservati al " + esc(st.professionista) + ".</p>";
   }
+  /* ---------- eToro e broker esteri ---------- */
+  async function caricaEtoro(f) {
+    try { var d = ET.leggi(await testoPdf(f)); S.etoro = { nome: f.name, d: d }; S.etoroErrore = null; var aa = ET.anni(d); if (!S.etoroAnno || aa.indexOf(S.etoroAnno) < 0) S.etoroAnno = aa.filter(function (a) { return a < new Date().getFullYear(); }).pop() || aa[aa.length - 1]; }
+    catch (e) { S.etoroErrore = e.message || String(e); }
+    render();
+  }
+  function viewEtoro() {
+    var h = '<h2>eToro e broker esteri</h2><p class="lead">Dal rendiconto eToro in PDF («Account statement», anche di più anni) si leggono per ogni anno le posizioni chiuse, i trasferimenti al wallet cripto, i dividendi e il portafoglio a inizio e fine anno. Sono dati di supporto: i quadri RT e RM dei redditi da broker esteri si inseriscono a mano nella scheda «Quadri RW, RT e F24».</p>' +
+      '<div class="panel"><div class="slots"><div class="slot' + (S.etoroErrore ? " err" : S.etoro ? " ok" : "") + '"><span class="req">Facoltativo</span><h3>Rendiconto eToro (PDF)</h3><p class="small muted" style="margin:0">Da eToro: Portafoglio › Rendiconto del conto, periodo dal primo deposito a fine anno, formato PDF. Si leggono solo le tabelle numeriche: nome, indirizzo e nome utente non vengono conservati.</p>' +
+      '<input type="file" accept=".pdf" data-etoro>' + (S.etoroErrore ? '<p class="stato" style="color:var(--hi)">' + esc(S.etoroErrore) + "</p>" : S.etoro ? '<p class="stato"><b>' + esc(S.etoro.nome) + "</b><br>" + esc(S.etoro.d.periodo) + " · " + S.etoro.d.chiuse.length + " posizioni chiuse · " + S.etoro.d.attivita.length + " movimenti · " + S.etoro.d.dividendi.length + " dividendi · " + S.etoro.d.holdings.length + ' fotografie del portafoglio</p><button type="button" class="btnlink small" id="togliEtoro">Togli il file</button>' : "") + "</div></div></div>";
+    if (!S.etoro) return h;
+    var d = S.etoro.d, anni = ET.anni(d), a = S.etoroAnno, r = ET.riepilogo(d, a);
+    h += '<div class="panel" style="margin-top:14px"><div class="grid2"><label class="f"><span class="t">Anno</span><select data-et="anno">' + anni.map(function (x) { return "<option" + (x === a ? " selected" : "") + ">" + x + "</option>"; }).join("") + "</select></label></div></div>";
+    // posizioni chiuse per categoria
+    var cat = Object.keys(r.rt);
+    h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Posizioni chiuse nel ' + a + "</h3>" + (cat.length ? tab(["Categoria", "n:Posizioni", "n:Profitti", "n:Perdite", "n:Overnight", "n:Dividendi CFD", "n:Risultato"], cat.map(function (k) { var c = r.rt[k]; return [esc(k), c.n, E(c.profitti), E(c.perdite), E(c.overnight), E(c.dividendiCfd), E(c.risultato + c.overnight + c.dividendiCfd)]; }), 20) +
+      '<p class="small">Profitti e perdite in euro come calcolati da eToro per ogni posizione. Sono CFD le posizioni con leva o allo scoperto (anche su cripto e azioni); le commissioni overnight e i dividendi dei CFD sono componenti del differenziale. Overnight convertiti dal dollaro al cambio medio implicito dei profitti dell\'anno' + (r.cambioMedio ? " (" + r.cambioMedio.toFixed(4) + " € per dollaro)" : "") + ".</p>" : '<p class="muted">Nessuna posizione chiusa nell\'anno.</p>') + "</div>";
+    // trasferimenti al wallet cripto
+    var tw = r.trasferimentiWallet;
+    if (tw.n) h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Cripto trasferite al wallet eToro (' + tw.n + ")</h3><p class=\"small\">Non sono cessioni: le cripto passano al wallet eToro dello stesso titolare (eToro le toglie dalla piattaforma al valore del momento). Il costo d'acquisto è l'importo investito all'apertura della posizione: va riportato sul wallet di arrivo (in Koinly o nella scheda Costi di carico, con la correzione «costo documentato» del deposito corrispondente).</p>" +
+      tab(["Cripto", "n:Trasferimenti", "n:Quantità", "n:Valore al trasferimento (USD)", "n:Costo d'acquisto (USD)"], Object.keys(tw.perCripto).map(function (k) { var z = tw.perCripto[k]; return [esc(k), z.n, Q(String(Math.round(z.unita * 1e6) / 1e6)), USD(z.valoreUsd), USD(z.costoUsd)]; }), 20) +
+      '<details><summary class="small">Dettaglio dei trasferimenti</summary>' + tab(["Data", "Cripto", "n:Quantità", "n:Valore (USD)", "n:Costo (USD)", "Aperta il"], tw.righe.map(function (x) { return [it(x.data), esc(x.cripto), Q(String(x.unita)), USD(x.valoreUsd), USD(x.costoUsd), it(x.apertura)]; }), 400) + "</details></div>";
+    // dividendi
+    if (r.rm.n || r.rm.cfdNettoEur) h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Dividendi nel ' + a + "</h3>" + tab(["Data", "Strumento", "Tipologia", "n:Netto (€)", "n:Ritenuta estera (€)", "n:Aliquota"], r.rm.righe.map(function (x) { return [it(x.data), esc(x.nome), esc(x.tipo), E(x.nettoEur, 4), E(x.ritenutaEur, 4), x.aliquota + "%"]; }), 200) +
+      '<p class="small">Dividendi di azioni ed ETF: netto ' + E(r.rm.nettoEur) + ", ritenuta estera " + E(r.rm.ritenutaEur) + ", lordo " + E(r.rm.lordoEur) + ". Dividendi su CFD (nel differenziale, quadro RT): " + E(r.rm.cfdNettoEur) + ".</p></div>";
+    // portafoglio
+    var foto = function (o) { return Object.keys(o).map(function (k) { return [esc(k), o[k].n, E(o[k].eur)]; }); };
+    // dettaglio per strumento a inizio e fine anno (quantità e valore in euro di eToro), per il quadro RW
+    var perAsset = function (data) { var h = data && d.holdings.filter(function (x) { return x.data === data; })[0], o = {}; (h ? h.righe : []).forEach(function (x) { var z = o[x.asset] || (o[x.asset] = { cat: x.categoria, isin: x.isin, unita: 0, eur: 0, n: 0 }); z.n++; z.unita += x.unita || 0; z.eur += x.eur || 0; }); return o; };
+    var ai = perAsset(r.rw.dataInizio), af = perAsset(r.rw.dataFine), nomi = Object.keys(ai).concat(Object.keys(af)).filter(function (x, i, l) { return l.indexOf(x) === i; }).sort();
+    h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Portafoglio eToro a inizio e fine anno</h3>' +
+      '<div class="grid2"><div><h4>' + (r.rw.dataInizio ? "Al " + it(r.rw.dataInizio) : "Inizio anno: fotografia assente") + "</h4>" + tab(["Categoria", "n:Posizioni", "n:Valore"], foto(r.rw.inizio), 20) + '</div><div><h4>' + (r.rw.dataFine ? "Al " + it(r.rw.dataFine) : "Fine anno: fotografia assente") + "</h4>" + tab(["Categoria", "n:Posizioni", "n:Valore"], foto(r.rw.fine), 20) + "</div></div>" +
+      (nomi.length ? "<h4>Per strumento (valori per il quadro RW)</h4>" + tab(["Strumento", "Categoria", "ISIN", "n:Quantità iniziale", "n:Valore iniziale", "n:Quantità finale", "n:Valore finale"], nomi.map(function (k) { var x = ai[k], y = af[k], z = x || y; return [esc(k), esc(z.cat), esc(z.isin || ""), x ? Q(String(Math.round(x.unita * 1e8) / 1e8)) : "–", x ? E(x.eur) : "–", y ? Q(String(Math.round(y.unita * 1e8) / 1e8)) : "–", y ? E(y.eur) : "–"]; }).concat([["<b>Totale</b>", "", "", "", "<b>" + E(nomi.reduce(function (s, k) { return s + (ai[k] ? ai[k].eur : 0); }, 0)) + "</b>", "", "<b>" + E(nomi.reduce(function (s, k) { return s + (af[k] ? af[k].eur : 0); }, 0)) + "</b>"]]), 200) +
+        '<p class="small">Valori di mercato in euro calcolati da eToro alla data della fotografia. Le posizioni aperte o chiuse durante l\'anno vanno nel quadro RW con il valore all\'apertura o alla chiusura.</p>' : "") +
+      '<p class="small">Saldo liquido del conto: ' + USD(r.rw.saldoInizioUsd) + " a inizio anno, " + USD(r.rw.saldoFineUsd) + " a fine anno." + (!r.rw.dataFine || !r.rw.dataInizio ? " <b>Il rendiconto non contiene la fotografia del portafoglio a una delle due date: chiedere a eToro il rendiconto a quella data o ricostruire il valore delle posizioni aperte.</b>" : "") + "</p></div>";
+    return h;
+  }
+  function USD(x) { return x == null || !isFinite(x) ? "–" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "USD" }).format(x); }
   function viewGuida() {
     return '<div class="toolbar noprint" style="justify-content:flex-end;margin-bottom:10px"><button type="button" class="btn gold" id="stampaGuida">Stampa / PDF della guida</button></div>' + (window.KoinlyGuida || "") + contattiStudio() +
       '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Codice aperto e donazioni</h3>' + donazioni() + "</div>";
@@ -826,7 +904,7 @@
     nav();
     var aperto = document.getElementById("spam"); if (aperto) S.spamAperti = aperto.open;
     var v = VISTE[S.tab];
-    app.innerHTML = (v === "ivaca" ? viewIvaca() : v === "costi" ? viewCosti() : v === "questionario" ? viewQuestionario() : v === "sanzioni" ? viewSanzioni() : v === "modelli" ? viewModelli() : viewGuida()) +
+    app.innerHTML = (v === "ivaca" ? viewIvaca() : v === "costi" ? viewCosti() : v === "questionario" ? viewQuestionario() : v === "sanzioni" ? viewSanzioni() : v === "modelli" ? viewModelli() : v === "etoro" ? viewEtoro() : viewGuida()) +
       '<footer class="piede noprint">' + donazioni() + '<p class="small muted marchio">Koinly Tools non è affiliato né approvato da Koinly. «Koinly» è un marchio dei rispettivi titolari, citato solo per indicare i report compatibili.</p>' + diritti() + "</footer>";
   }
 
@@ -921,11 +999,14 @@
     if (t.matches("[data-lavoro]") && t.files[0]) { caricaLavoro(t.files[0]); return; }
     if (t.matches("[data-banca]") && t.files.length) { caricaBanca(t.files); return; }
     if (t.matches("[data-koinlyces]") && t.files[0]) { caricaKoinlyCes(t.files[0]); return; }
+    if (t.matches("[data-etoro]") && t.files[0]) { caricaEtoro(t.files[0]); return; }
+    if (t.matches("[data-et]")) { S.etoroAnno = +t.value; render(); return; }
     if (t.matches("[data-qanno]")) { var qa = +t.getAttribute("data-qanno"); S.quest.anni = S.quest.anni.filter(function (x) { return x !== qa; }); if (t.checked) S.quest.anni.push(qa); S.quest.anni.sort(); render(); return; }
     if (t.matches("[data-qrep]") && t.files.length) { caricaReportQuest(t.files); return; }
     if (t.matches("[data-flag]")) { S.quest.flag[t.getAttribute("data-flag")] = t.value; render(); return; }
     if (t.matches("[data-cliente]")) { S.quest.cliente[t.getAttribute("data-cliente")] = t.value.trim(); return; }
     if (t.matches("[data-modt]")) { S.modelli[t.getAttribute("data-modt")] = t.value.trim(); return; }
+    if (t.matches("[data-alt]")) { var al = S.altri.filter(function (x) { return x.id === +t.getAttribute("data-alt"); })[0], ak = t.getAttribute("data-k"); if (al) al[ak] = ak === "anno" ? +t.value : t.value; render(); return; }
     if (t.matches("[data-mod]")) { S.modelli[t.getAttribute("data-mod")] = +t.value; render(); return; }
     if (t.matches("[data-sz]")) { S.sanz[t.getAttribute("data-sz")] = t.value || oggiIso; render(); return; }
     if (t.matches("[data-zfile]") && t.files[0]) { caricaReportAnno(+t.getAttribute("data-zfile"), t.files[0]); return; }
@@ -947,6 +1028,7 @@
     else if (t.id === "stampaSanz") stampaSanzioni();
     else if (t.id === "stampaRW") stampaRW();
     else if (t.id === "salvaLavoro") salvaLavoro();
+    else if (t.id === "togliEtoro") { S.etoro = null; S.etoroErrore = null; render(); }
     else if (t.id === "togliKoinlyCes") { S.koinlyCes = null; S.koinlyCesErrore = null; render(); }
     else if (t.id === "richiestaCliente") stampaRichiesta();
     else if (t.id === "svuotaBanca") { S.banca = { movimenti: [], lette: 0, scartate: 0, file: 0 }; render(); }
@@ -965,6 +1047,9 @@
     else if (t.id === "stampaGuida") apriStampa(intestazione("Koinly Tools · guida per il cliente") + (window.KoinlyGuida || "").replace(/^<h2>[^<]*<\/h2>/, "") + contattiStudio() + donazioni() + diritti());
     else if (t.matches("[data-tab]")) { S.tab = +t.getAttribute("data-tab"); render(); window.scrollTo(0, 0); }
     else if (t.id === "stampaRT") stampaRT();
+    else if (t.id === "aggiungiAltro") { nuovoAltro(); render(); }
+    else if (t.id === "stampaAltri") stampaAltri();
+    else if (t.matches("[data-toglialtro]")) { var ta = +t.getAttribute("data-toglialtro"); S.altri = S.altri.filter(function (x) { return x.id !== ta; }); render(); }
     else if (t.id === "stampaF24") stampaF24();
     else if (t.matches("[data-toglianno]")) { var id = +t.getAttribute("data-toglianno"); S.sanz.anni = S.sanz.anni.filter(function (x) { return x.id !== id; }); render(); }
     else if (t.matches("[data-usaivaca]")) { var ya = S.sanz.anni.filter(function (x) { return x.id === +t.getAttribute("data-usaivaca"); })[0]; ya.ivaca = Math.round(ivaca.totali.ivaca * 100) / 100; ya.fonte.ivaca = "calcolo"; render(); }

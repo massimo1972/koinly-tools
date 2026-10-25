@@ -33,4 +33,13 @@ t("F24: codici 1727, 1715, 8945, 1945, 8911 con anno d'imposta; anni omessi escl
   assert.deepEqual(f.esclusi, [2023]);
   assert.equal(f.totale, Math.round(f.righe.reduce((s, x) => s + x.importo, 0) * 100) / 100);
 });
+t("Quadri RT al 26% e RM inseriti a mano: righi per anno, minusvalenze pregresse, imposta sul lordo", () => {
+  const a = M.quadroRT26(2021, 727.4, 810.2, {});
+  assert.equal(a.righi.find((x) => x.rigo === "RT23" && x.col === "1").valore, 83); assert.equal(a.imposta, 0); assert.equal(a.rigoMinus, "RT93 col. 5");
+  const b = M.quadroRT26(2024, 1000, 400, { minusPrecedenti: 100 });
+  assert.equal(b.righi.find((x) => x.rigo === "RT52" && x.col === "2").valore, 600); assert.equal(b.righi.find((x) => x.rigo === "RT72").valore, 500); assert.equal(b.imposta, 130);
+  const c = M.quadroRM(2020, [{ lettera: "H", stato: "069", lordo: 100.4 }, { lettera: "H", stato: "013", lordo: 0.3 }]);
+  assert.equal(c.rigo, "RM12"); assert.equal(c.righi.length, 1); assert.equal(c.imposta, 26);
+  assert.equal(M.quadroRM(2025, [{ lettera: "H", lordo: 50 }]).rigo, "RM31");
+});
 console.log("\n" + n + " prove superate");

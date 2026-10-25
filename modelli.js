@@ -121,5 +121,45 @@
     return { righe: righe, totale: r2(righe.reduce(function (a, x) { return a + x.importo; }, 0)), esclusi: esclusi };
   }
 
-  return { quadroRW: quadroRW, quadroRT: quadroRT, f24: f24 };
+  /* Quadro RT, sezione dei redditi diversi al 26% (azioni, CFD e altri strumenti presso broker esteri), con importi inseriti a mano.
+     Fino all'anno 2023 (Redditi PF 2021-2024): sezione II, righi RT21-RT29, minusvalenze da riportare in RT93 col. 5.
+     Dall'anno 2024 (Redditi PF 2025-2026): sezione II-A, righi RT11-RT13, risultato in RT52, imponibile e imposta RT72-RT74, minus in RT102.
+     Codice F24 1100. */
+  function quadroRT26(anno, corrispettivi, costi, opz) {
+    var o = opz || {}, c = r0(corrispettivi), k = r0(costi), diff = c - k, plus = diff > 0 ? diff : 0, minus = diff < 0 ? -diff : 0;
+    var mp = Math.min(r0(o.minusPrecedenti), plus), base = plus - mp, imp = r0(base * 0.26);
+    var out = { anno: anno, righi: [], imposta: imp, codiceTributo: "1100", minusvalenzaDaRiportare: minus };
+    var add = function (rigo, col, desc, v) { out.righi.push({ rigo: rigo, col: col, descrizione: desc, valore: v }); };
+    if (anno <= 2023) {
+      out.modello = "Redditi PF " + (anno + 1) + " · quadro RT, sezione " + (anno === 2023 ? "II-A" : "II") + " (redditi diversi al 26%)";
+      add("RT21", "", "Totale dei corrispettivi", c); add("RT22", "3", "Totale dei costi o valori di acquisto", k);
+      add("RT23", "1", "Minusvalenza", minus); add("RT23", "2", "Plusvalenza", plus);
+      add("RT24", "", "Minusvalenze degli anni precedenti (da RT93)", mp);
+      add("RT26", "", "Imponibile", base); add("RT27", "", "Imposta sostitutiva 26%", imp); add("RT29", "", "Imposta dovuta", imp);
+      out.rigoMinus = "RT93 col. 5";
+    } else {
+      out.modello = "Redditi PF " + (anno + 1) + " · quadro RT, sezione II-A (redditi diversi al 26%)";
+      add("RT11", "1", "Totale dei corrispettivi", c); add("RT11", "2", "Totale dei costi o valori di acquisto", k);
+      add("RT13", "", "Minusvalenze degli anni precedenti", mp);
+      add("RT52", "1", "Minusvalenza", minus); add("RT52", "2", "Plusvalenza", plus);
+      add("RT72", "", "Imponibile", base); add("RT73", "", "Imposta sostitutiva 26%", imp); add("RT74", "", "Imposta dovuta", imp);
+      out.rigoMinus = "RT102";
+    }
+    return out;
+  }
+  /* Quadro RM, redditi di capitale di fonte estera senza ritenuta italiana (imposta sostitutiva 26% sul lordo delle ritenute estere).
+     Fino all'anno 2023: sezione V, rigo RM12 (imposta in col. 6). Dall'anno 2024: sezione II-A, rigo RM31 (imposta in col. 8).
+     righe: [{ lettera: "H" dividendi | "G" interessi bancari | "B" OICR armonizzati | "I" altri, stato: codice Stato, lordo }]. Codice F24 1242. */
+  function quadroRM(anno, righe) {
+    var rigo = anno <= 2023 ? "RM12" : "RM31", colImp = anno <= 2023 ? "6" : "8";
+    var out = { anno: anno, rigo: rigo, codiceTributo: "1242", modello: "Redditi PF " + (anno + 1) + " · quadro RM, " + (anno <= 2023 ? "sezione V" : "sezione II-A") + ", rigo " + rigo, righi: [] };
+    (righe || []).filter(function (x) { return r0(x.lordo) > 0; }).forEach(function (x) {
+      var l = r0(x.lordo), imp = r0(l * 0.26);
+      out.righi.push({ lettera: x.lettera || "H", stato: x.stato || "", lordo: l, aliquota: 26, imposta: imp, colImposta: colImp });
+    });
+    out.imposta = out.righi.reduce(function (s, x) { return s + x.imposta; }, 0);
+    return out;
+  }
+
+  return { quadroRW: quadroRW, quadroRT: quadroRT, quadroRT26: quadroRT26, quadroRM: quadroRM, f24: f24 };
 });
