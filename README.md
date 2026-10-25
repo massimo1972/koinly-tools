@@ -150,13 +150,14 @@ Scheda «Guida» per il cliente (`guida.js`): quali file Koinly scaricare, come 
 
 ## Prove
 
+Sul Mac, senza Node, con JavaScriptCore del sistema (tutte le prove, o solo quelle indicate):
+
 ```bash
-node test/detenzione.test.js
-node test/sanzioni.test.js
-node test/modelli.test.js
-node test/costi.test.js
-node test/banca.test.js
+test/prove.sh
+test/prove.sh costi etoro
 ```
+
+Con Node ogni file si esegue anche da solo, per esempio `node test/costi.test.js`.
 
 I dati delle prove sono inventati. I file reali dei clienti vanno solo nella cartella `campioni/`, esclusa da Git.
 
