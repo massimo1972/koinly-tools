@@ -48,6 +48,13 @@ Uscite: tabella a video con i periodi; Excel (fogli «Righi RW» e «Riepilogo p
   - tutte le altre righe sono scartate e se ne conta solo il numero;
   - nomi, IBAN, indirizzi e causali non vengono mai conservati né mostrati;
   - i movimenti si riscontrano con versamenti, prelievi, acquisti e vendite in euro registrati in Koinly.
+- **Confronto con Koinly, cessione per cessione:** si carica il «Complete tax report» in PDF, anche su più anni. Se ne legge l'elenco delle cessioni e si tengono quelle dell'anno. Ogni cessione si abbina alla ricostruita per cripto, data (±1 giorno, Koinly usa l'ora italiana) e quantità (±0,5%). La differenza di plusvalenza si scompone in:
+  - operazioni che Koinly tassa ma che non rilevano;
+  - differenze di corrispettivo e di costo;
+  - cessioni presenti solo in Koinly;
+  - cessioni presenti solo nella ricostruzione.
+
+  Il confronto è anche nell'Excel e nella memoria.
 - **Privacy nei report:** le descrizioni Koinly dei movimenti in euro, che possono contenere banca e IBAN del cliente, non vengono riportate.
 
 ## 3. Questionario dell'Agenzia delle Entrate

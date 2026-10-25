@@ -352,6 +352,7 @@
       '<div class="scroll"><table class="det"><thead><tr><th>Data</th><th>Tipo</th><th>Cripto</th><th class="n">Quantità</th><th>Wallet</th><th class="n">Valore Koinly</th><th>Indirizzo / TxHash</th><th>Correzione</th></tr></thead><tbody>' +
       filtrate.slice(0, 150).map(function (v) { return "<tr><td>" + it(v.data) + "</td><td>" + esc(v.tipo) + "</td><td>" + esc(v.cripto) + '</td><td class="n">' + Q(v.q) + "</td><td>" + esc(v.wallet || "") + '</td><td class="n">' + E(v.valore) + '</td><td class="small" style="word-break:break-all;max-width:220px">' + esc(v.indirizzo || "") + (v.txHash ? "<br>" + esc(v.txHash) : "") + "</td><td>" + selectAzione(v) + "</td></tr>"; }).join("") +
       "</tbody></table></div>" + (filtrate.length > 150 ? '<p class="small">Mostrate 150 operazioni su ' + filtrate.length + ": restringete i filtri o usate la correzione in blocco.</p>" : "") + "</div>";
+    h += sezioneConfrontoKoinly(anno);
     h += sezioneBanca();
     // riepilogo per cripto
     h += '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Costi per cripto · ' + anno + '</h3><div class="toolbar noprint"><button type="button" class="btn" id="excelCosti">Scarica Excel</button><button type="button" class="btn gold" id="stampaCosti">Stampa / PDF</button><button type="button" class="btn gold" id="stampaMemoria">Memoria finale</button></div></div>' +
@@ -386,7 +387,17 @@
     r.cessioni.forEach(function (c) { var n = f3.length + 1; f3.push([it(c.data), c.cripto, +c.q, c.tipo, c.controparte, { v: c.corrispettivo, s: "euro" }, { v: c.costo, s: "euro" }, { f: "F" + n + "-G" + n, s: "euro" }, c.scoperto ? +c.scoperto : null]); });
     var f4 = [[{ v: "Operazioni corrette dallo studio", s: "titolo" }], [], int(["Riga del file", "Data", "Tipo", "Cripto", "Quantità", "Wallet", "Valore Koinly", "Correzione", "Importo", "TxHash"])];
     r.daVerificare.forEach(function (v) { var c = S.correzioni[v.riga]; f4.push([v.riga, it(v.data), v.tipo, v.cripto, +v.q, v.wallet || "", { v: v.valore || 0, s: "euro" }, c ? ((AZIONI[v.tipo] || []).filter(function (o) { return o[0] === c.azione; })[0] || ["", c.azione])[1] : "nessuna (da verificare)", c && c.importo != null ? { v: +c.importo, s: "euro" } : null, v.txHash || ""]); });
-    scaricaFile("costi-lifo-" + anno + ".xlsx", new Blob([X.crea([{ nome: "Costi per cripto", colonne: [16, 18, 14, 14, 14, 14, 14, 18, 14, 14], righe: f1, orizzontale: true }, { nome: "Strati al 31-12", colonne: [16, 12, 40, 18, 14, 14], righe: f2, orizzontale: true }, { nome: "Cessioni", colonne: [12, 10, 18, 26, 12, 14, 14, 14, 14], righe: f3, orizzontale: true }, { nome: "Correzioni", colonne: [10, 12, 14, 10, 18, 30, 14, 40, 14, 40], righe: f4, orizzontale: true }])], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    var fogliExtra = [], xk = confrontoKoinly(anno);
+    if (xk && xk.koinly.n) {
+      var fk = [[{ v: "Confronto con Koinly · " + anno, s: "titolo" }], ["Report: " + S.koinlyCes.nome + " · periodo " + (S.koinlyCes.periodo || "")], [], int(["Voce", "Operazioni", "Importo"])];
+      xk.voci.forEach(function (v) { fk.push([v.voce, v.n == null ? xk.koinly.n : v.n, { v: v.importo, s: "euro" }]); });
+      fk.push(["= Plusvalenza ricostruita", xk.nostra.n, { v: xk.nostra.risultato, s: "totale" }], [], int(["Data", "Cripto", "Quantità", "Tipo", "Ricavo Koinly", "Corrispettivo", "Costo Koinly", "Costo LIFO", "Differenza"]));
+      xk.differenze.forEach(function (z) { fk.push([it(z.data), z.cripto, z.quantita, z.tipo, { v: z.ricavoKoinly, s: "euro" }, { v: z.ricavo, s: "euro" }, { v: z.costoKoinly, s: "euro" }, { v: z.costo, s: "euro" }, { v: z.scarto, s: "euro" }]); });
+      xk.nonRilevanti.forEach(function (z) { fk.push([it(z.data), z.cripto, z.quantita, "non rilevante: " + z.tipo, null, null, null, null, { v: -z.risultatoKoinly, s: "euro" }]); });
+      xk.soloKoinly.forEach(function (z) { fk.push([it(z.data), z.cripto, z.quantita, "solo in Koinly", { v: z.ricavo, s: "euro" }, null, { v: z.costo, s: "euro" }, null, { v: -z.risultato, s: "euro" }]); });
+      fogliExtra.push({ nome: "Confronto Koinly", colonne: [70, 10, 18, 30, 14, 14, 14, 14, 14], righe: fk, orizzontale: true });
+    }
+    scaricaFile("costi-lifo-" + anno + ".xlsx", new Blob([X.crea(fogliExtra.concat([{ nome: "Costi per cripto", colonne: [16, 18, 14, 14, 14, 14, 14, 18, 14, 14], righe: f1, orizzontale: true }, { nome: "Strati al 31-12", colonne: [16, 12, 40, 18, 14, 14], righe: f2, orizzontale: true }, { nome: "Cessioni", colonne: [12, 10, 18, 26, 12, 14, 14, 14, 14], righe: f3, orizzontale: true }, { nome: "Correzioni", colonne: [10, 12, 14, 10, 18, 30, 14, 40, 14, 40], righe: f4, orizzontale: true }]))], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
   }
   function stampaCosti() {
     var anno = S.costi.anno, r = confrontoCosti(costiAnno(anno), anno), vere = r.righe.filter(function (x) { return !x.spam; }), tv = anno >= 2023 ? r.totali.controValutaStable : r.totali.tutte;
@@ -401,6 +412,37 @@
       "<p><b>Per il quadro RT " + anno + "</b> (" + (anno >= 2023 ? "cessioni contro valuta e contro stablecoin" : "tutte le cessioni") + "): corrispettivi " + E(tv.corrispettivi) + ", costi " + E(tv.costi) + ", plusvalenza " + E(tv.corrispettivi - tv.costi) + ".</p>" +
       (r.avvisi.length ? "<h2>Avvisi</h2><ul class=\"avvisi\">" + r.avvisi.map(function (a) { return "<li>" + esc(a) + "</li>"; }).join("") + "</ul>" : "") +
       '<p class="nota">Il dettaglio di strati, cessioni e correzioni è nel file Excel allegato. I calcoli possono differire da Koinly per le correzioni dello studio e per il metodo LIFO globale.</p>' + firma());
+  }
+
+  /* ---------- confronto con il Complete tax report Koinly, cessione per cessione ---------- */
+  S.koinlyCes = null;
+  async function caricaKoinlyCes(f) {
+    try {
+      var r = L.leggiCessioniPdf(await testoPdf(f));
+      if (!r.cessioni.length) throw new Error("Nel PDF non c'è l'elenco «Transazioni di plusvalenze»: serve il Complete tax report di Koinly.");
+      S.koinlyCes = { nome: f.name, periodo: r.periodo, fuso: r.fuso, righe: r.righe, cessioni: r.cessioni }; S.koinlyCesErrore = null;
+    } catch (e) { S.koinlyCesErrore = e.message || String(e); }
+    render();
+  }
+  function confrontoKoinly(anno) { return S.koinlyCes ? C.confrontaCessioniKoinly(costiAnno(anno), S.koinlyCes.cessioni, anno) : null; }
+  function sezioneConfrontoKoinly(anno) {
+    var h = '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Confronto con Koinly, cessione per cessione</h3>' +
+      '<p class="small">Caricate il «Complete tax report» di Koinly in PDF (anche di più anni): se ne legge l\'elenco delle cessioni, si tengono quelle dell\'anno e si abbinano alle cessioni ricostruite per cripto, data e quantità. La differenza di plusvalenza viene scomposta nelle sue cause.</p>' +
+      '<label class="f"><span class="t">Complete tax report Koinly (PDF)</span><input type="file" accept=".pdf" data-koinlyces><span class="small">' + (S.koinlyCesErrore ? '<span style="color:var(--hi)">' + esc(S.koinlyCesErrore) + "</span>" : S.koinlyCes ? esc(S.koinlyCes.nome) + " · periodo " + esc(S.koinlyCes.periodo || "") + " · " + S.koinlyCes.cessioni.length + " cessioni (" + S.koinlyCes.righe + " strati) · date in " + (S.koinlyCes.fuso === "UTC" ? "UTC" : "ora italiana") : "") + "</span></label>";
+    var x = confrontoKoinly(anno);
+    if (!x) return h + "</div>";
+    if (!x.koinly.n) return h + '<p>Il report non contiene cessioni dell\'anno ' + anno + ".</p></div>";
+    h += '<table class="det" style="margin-top:10px"><thead><tr><th>Dalla plusvalenza Koinly alla plusvalenza ricostruita · ' + anno + '</th><th class="n">Operazioni</th><th class="n">Importo</th></tr></thead><tbody>' +
+      x.voci.map(function (v, i) { return "<tr" + (i === 0 ? ' class="tot"' : "") + "><td>" + esc(v.voce) + '</td><td class="n">' + (v.n == null ? x.koinly.n : v.n) + '</td><td class="n">' + E(v.importo) + "</td></tr>"; }).join("") +
+      '<tr class="tot"><td>= Plusvalenza ricostruita (cessioni rilevanti)</td><td class="n">' + x.nostra.n + '</td><td class="n">' + E(x.nostra.risultato) + "</td></tr>" +
+      (Math.abs(x.quadratura) >= 1 ? '<tr><td colspan="2">Scarto non spiegato (arrotondamenti o abbinamenti dubbi)</td><td class="n">' + E(x.quadratura) + "</td></tr>" : "") + "</tbody></table>" +
+      '<p class="small">Koinly ' + anno + ": " + x.koinly.n + " cessioni, corrispettivi " + E(x.koinly.ricavo) + ", costi " + E(x.koinly.costo) + ". Il totale del riepilogo del report, se il periodo è di più anni, li comprende tutti: qui conta solo l'anno.</p>";
+    if (x.nonRilevanti.length) h += "<h4>Operazioni che Koinly tassa ma che non rilevano (" + x.nonRilevanti.length + ")</h4>" + tab(["Data", "Cripto", "n:Quantità", "Tipo nella ricostruzione", "n:Risultato Koinly"], x.nonRilevanti.map(function (z) { return [it(z.data), esc(z.cripto), Q(String(z.quantita)), esc(z.tipo), E(z.risultatoKoinly)]; }), 100);
+    var conScarto = x.differenze.filter(function (z) { return Math.abs(z.scarto) >= 1; });
+    h += "<h4>Cessioni comuni con risultato diverso (" + conScarto.length + " su " + x.differenze.length + ")</h4>" + (conScarto.length ? tab(["Data", "Cripto", "n:Quantità", "n:Corrispettivo Koinly", "n:Corrispettivo", "n:Costo Koinly", "n:Costo LIFO", "n:Differenza"], conScarto.map(function (z) { return [it(z.data), esc(z.cripto), Q(String(z.quantita)), E(z.ricavoKoinly), E(z.ricavo), E(z.costoKoinly), E(z.costo), E(z.scarto)]; }), 100) : "<p>Sulle cessioni comuni corrispettivi e costi coincidono con Koinly (scarti sotto 1 €).</p>");
+    if (x.soloKoinly.length) h += "<h4>Cessioni presenti solo in Koinly (" + x.soloKoinly.length + ")</h4>" + tab(["Data", "Cripto", "n:Quantità", "n:Ricavo", "n:Costo", "n:Risultato"], x.soloKoinly.map(function (z) { return [it(z.data) + " " + z.ora, esc(z.cripto), Q(String(z.quantita)), E(z.ricavo), E(z.costo), E(z.risultato)]; }), 100);
+    if (x.soloNostre.length) h += "<h4>Cessioni rilevanti presenti solo nella ricostruzione (" + x.soloNostre.length + ")</h4>" + tab(["Data", "Cripto", "n:Quantità", "Tipo", "n:Corrispettivo", "n:Costo", "n:Risultato"], x.soloNostre.map(function (z) { return [it(z.data), esc(z.cripto), Q(z.q), esc(z.tipo), E(z.corrispettivo), E(z.costo), E(z.risultato)]; }), 100);
+    return h + "</div>";
   }
 
   /* ---------- estratti conto bancari, anonimizzati alla lettura ---------- */
@@ -586,6 +628,8 @@
 
   /* ---------- memoria finale: come sono stati ricostruiti valori e costi, correzioni e differenze rispetto a Koinly ---------- */
   function koinlyRT(anno) {
+    var x = confrontoKoinly(anno);
+    if (x && x.koinly.n) return { corrispettivi: x.koinly.ricavo, costi: x.koinly.costo, nome: S.koinlyCes.nome, cessioni: true };
     var a = S.sanz.anni.filter(function (x) { return x.anno === anno && x.fonte.corrispettivi === "report"; })[0];
     if (a) return { corrispettivi: +a.corrispettivi || 0, costi: +a.costi || 0, nome: a.nome };
     var r = S.quest.reportCompleti[anno + "-12-31"];
@@ -634,7 +678,9 @@
         riga("Costi RT", k ? k.costi : null, ts.k, tc.k, "costi ricostruiti dall'origine; correzioni su depositi e prelievi") +
         riga("<b>Plusvalenza RT</b>", k ? k.corrispettivi - k.costi : null, ts.c - ts.k, tc.c - tc.k, "") +
         "</tbody></table>" + (k ? "" : '<p class="small">Il «Complete tax report» Koinly dell\'anno non è stato caricato (scheda «Questionario AdE» o «Sanzioni RW e RT»): il confronto è con la sola ricostruzione.</p>') +
-        "<p class=\"small\">Effetto delle correzioni dello studio sulla plusvalenza: " + E((tc.c - tc.k) - (ts.c - ts.k)) + (k ? "; effetto del metodo e dei criteri rispetto a Koinly: " + E((ts.c - ts.k) - (k.corrispettivi - k.costi)) : "") + ".</p>";
+        "<p class=\"small\">Effetto delle correzioni dello studio sulla plusvalenza: " + E((tc.c - tc.k) - (ts.c - ts.k)) + (k ? "; effetto del metodo e dei criteri rispetto a Koinly: " + E((ts.c - ts.k) - (k.corrispettivi - k.costi)) : "") + ".</p>" +
+        (function () { var x = confrontoKoinly(a); if (!x || !x.koinly.n) return ""; return "<p><b>Riconciliazione con l'elenco delle cessioni Koinly " + a + "</b> (" + x.koinly.n + " cessioni dell'anno, abbinate per cripto, data e quantità):</p><table class=\"det\"><tbody>" +
+          x.voci.map(function (v) { return "<tr><td>" + esc(v.voce) + (v.n != null ? " (" + v.n + ")" : "") + '</td><td class="n">' + E(v.importo) + "</td></tr>"; }).join("") + '<tr class="tot"><td>= Plusvalenza ricostruita</td><td class="n">' + E(x.nostra.risultato) + "</td></tr></tbody></table>"; })();
     });
     h += "<h2>5. Conclusioni</h2><p>Per i quadri della dichiarazione si propongono i valori della colonna «Ricostruzione finale»:</p><ul>" +
       anni.map(function (a) { var t = rtDi(conCorr[a], a); return "<li><b>" + a + "</b>: corrispettivi " + E(t.c) + ", costi " + E(t.k) + ", plusvalenza " + E(t.c - t.k) + (a >= 2023 && a <= 2024 ? " (prima della franchigia di 2.000 €)" : "") + ".</li>"; }).join("") + "</ul>" +
@@ -836,6 +882,7 @@
     if (t.matches("[data-cs]")) { var cs = t.getAttribute("data-cs"); S.costi[cs] = cs === "anno" ? +t.value : t.value; render(); return; }
     if (t.matches("[data-lavoro]") && t.files[0]) { caricaLavoro(t.files[0]); return; }
     if (t.matches("[data-banca]") && t.files.length) { caricaBanca(t.files); return; }
+    if (t.matches("[data-koinlyces]") && t.files[0]) { caricaKoinlyCes(t.files[0]); return; }
     if (t.matches("[data-qanno]")) { var qa = +t.getAttribute("data-qanno"); S.quest.anni = S.quest.anni.filter(function (x) { return x !== qa; }); if (t.checked) S.quest.anni.push(qa); S.quest.anni.sort(); render(); return; }
     if (t.matches("[data-qrep]") && t.files.length) { caricaReportQuest(t.files); return; }
     if (t.matches("[data-flag]")) { S.quest.flag[t.getAttribute("data-flag")] = t.value; render(); return; }

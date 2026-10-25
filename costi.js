@@ -260,5 +260,54 @@
     return ris;
   }
 
-  return { calcola: calcola, confronta: confronta, STABLE: STABLE };
+  /* Confronto cessione per cessione con l'elenco del Complete tax report Koinly (lettura.leggiCessioniPdf).
+     ris: risultato di calcola per l'anno; koinly: cessioni Koinly (anche di più anni: si tengono solo quelle dell'anno).
+     Abbinamento: stessa cripto, date entro un giorno (Koinly usa l'ora italiana), quantità uguale entro lo 0,5%.
+     La differenza tra la plusvalenza Koinly dell'anno e la nostra plusvalenza rilevante si scompone in:
+     operazioni che Koinly tassa ma che per noi non rilevano, differenze di corrispettivo e di costo sulle stesse cessioni,
+     cessioni presenti solo in Koinly e cessioni presenti solo da noi. */
+  function rilevante(tipo, anno) { return anno >= 2023 ? /^contro (valuta|stablecoin)$|^cessione a terzi$/.test(tipo) : !/^commissione|^prelievo|^uscita|^trasferimento/.test(tipo); }
+  function confrontaCessioniKoinly(ris, koinly, anno) {
+    var K = (koinly || []).filter(function (c) { return +c.data.slice(0, 4) === anno; });
+    var N = ris.cessioni.map(function (c, i) { return { i: i, c: c, q: Number(c.q), usata: false }; });
+    var giorni = function (a, b) { return Math.abs(Date.parse(a) - Date.parse(b)) / 86400000; };
+    var coppie = [], soloKoinly = [];
+    K.forEach(function (k) {
+      var best = null;
+      N.forEach(function (n) {
+        if (n.usata || n.c.cripto !== k.cripto || giorni(n.c.data, k.data) > 1) return;
+        var d = Math.abs(n.q - k.quantita), tol = Math.max(1e-8, k.quantita * 0.005);
+        if (d > tol) return;
+        if (!best || d < best.d || (d === best.d && giorni(n.c.data, k.data) < giorni(best.n.c.data, k.data))) best = { n: n, d: d };
+      });
+      if (best) { best.n.usata = true; coppie.push({ k: k, n: best.n.c }); } else soloKoinly.push(k);
+    });
+    var soloNostre = N.filter(function (n) { return !n.usata; }).map(function (n) { return n.c; });
+    var somma = function (arr, f) { return arr.reduce(function (s, x) { return s + f(x); }, 0); };
+    var rilev = function (c) { return rilevante(c.tipo, anno); };
+    var coppieRil = coppie.filter(function (p) { return rilev(p.n); }), coppieNonRil = coppie.filter(function (p) { return !rilev(p.n); });
+    var soloNostreRil = soloNostre.filter(rilev);
+    var plusKoinly = somma(K, function (k) { return k.risultato; });
+    var voci = [
+      { voce: "Plusvalenza Koinly dell'anno (elenco cessioni del report)", importo: plusKoinly },
+      { voce: (anno >= 2023 ? "− operazioni che Koinly tassa ma che dal 2023 non rilevano (permute tra cripto, acquisti con stablecoin, commissioni, uscite)" : "− commissioni e uscite che Koinly tratta come cessioni"), importo: -somma(coppieNonRil, function (p) { return p.k.risultato; }), n: coppieNonRil.length },
+      { voce: "+ differenze di corrispettivo sulle stesse cessioni", importo: somma(coppieRil, function (p) { return p.n.corrispettivo - p.k.ricavo; }), n: coppieRil.length },
+      { voce: "− differenze di costo sulle stesse cessioni (LIFO globale dall'origine e correzioni)", importo: -somma(coppieRil, function (p) { return p.n.costo - p.k.costo; }), n: coppieRil.length },
+      { voce: "− cessioni presenti solo in Koinly", importo: -somma(soloKoinly, function (k) { return k.risultato; }), n: soloKoinly.length },
+      { voce: "+ cessioni rilevanti presenti solo nella ricostruzione", importo: somma(soloNostreRil, function (c) { return c.risultato; }), n: soloNostreRil.length }
+    ];
+    var calcolata = voci.reduce(function (s, v) { return s + v.importo; }, 0);
+    var nostra = somma(ris.cessioni.filter(rilev), function (c) { return c.risultato; });
+    return {
+      anno: anno, koinly: { n: K.length, ricavo: somma(K, function (k) { return k.ricavo; }), costo: somma(K, function (k) { return k.costo; }), risultato: plusKoinly },
+      nostra: { n: ris.cessioni.filter(rilev).length, risultato: nostra },
+      voci: voci, quadratura: nostra - calcolata,
+      differenze: coppieRil.map(function (p) { return { data: p.k.data, cripto: p.k.cripto, quantita: p.k.quantita, tipo: p.n.tipo, ricavoKoinly: p.k.ricavo, ricavo: p.n.corrispettivo, costoKoinly: p.k.costo, costo: p.n.costo, scarto: (p.n.corrispettivo - p.n.costo) - (p.k.ricavo - p.k.costo) }; })
+        .sort(function (a, b) { return Math.abs(b.scarto) - Math.abs(a.scarto); }),
+      nonRilevanti: coppieNonRil.map(function (p) { return { data: p.k.data, cripto: p.k.cripto, quantita: p.k.quantita, tipo: p.n.tipo, risultatoKoinly: p.k.risultato }; }),
+      soloKoinly: soloKoinly, soloNostre: soloNostreRil
+    };
+  }
+
+  return { calcola: calcola, confronta: confronta, confrontaCessioniKoinly: confrontaCessioniKoinly, rilevante: rilevante, STABLE: STABLE };
 });

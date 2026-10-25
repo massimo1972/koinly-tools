@@ -67,4 +67,21 @@ t("Totali per il quadro RT: solo cessioni contro valuta e contro stablecoin", ()
   const tv = con.totali.controValutaStable;
   near(tv.corrispettivi, 45000 + 2000);
 });
+t("Confronto con l'elenco delle cessioni Koinly: scomposizione della differenza che quadra", () => {
+  const L = require("../lettura.js");
+  // estratto inventato dell'elenco «Transazioni di plusvalenze» (Koinly in italiano, più anni)
+  const testo = ["Periodo: 1 gen 2021 al 31 dic 2023", "Tutte le date e gli orari sono nel Europe/Rome fuso orario",
+    "01/02/2023 11:00 01/03/2022 11:00 BTC 1,00000000 20.010,00 45.000,00 24.990,00 Exchange",
+    "01/02/2023 11:00 01/03/2021 11:00 BTC 0,50000000 5.000,00 0,00 -5.000,00 Exchange",
+    "01/03/2023 11:00 01/03/2021 11:00 BTC 0,50000000 5.000,00 15.000,00 10.000,00 Exchange",
+    "05/05/2022 11:00 01/03/2021 11:00 BTC 0,10000000 1.000,00 3.000,00 2.000,00 Exchange"].join("\n");
+  const k = L.leggiCessioniPdf([{ text: testo }]);
+  assert.equal(k.fuso, "Europe/Rome"); assert.equal(k.cessioni.length, 3); near(k.cessioni[0].quantita, 1.5); near(k.cessioni[0].costo, 25010);
+  const x = C.confrontaCessioniKoinly(con, k.cessioni, 2023);
+  assert.equal(x.koinly.n, 2); // la cessione del 2022 resta fuori
+  near(x.quadratura, 0, 0.05);
+  assert.equal(x.nonRilevanti.length, 1); assert.equal(x.nonRilevanti[0].tipo, "permuta tra cripto");
+  // il corrispettivo Koinly della vendita (45.000 su 1,5 BTC) coincide; nessuna differenza di costo
+  near(x.voci[2].importo, 0); near(x.voci[3].importo, 0);
+});
 console.log("\n" + n + " prove superate");

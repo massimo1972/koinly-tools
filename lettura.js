@@ -14,7 +14,10 @@
   /* Formato dei numeri del documento: "it" se compare un importo come 1.234,56 o 12,34 €, altrimenti "en" */
   function formatoNumeri(testo) {
     if (/\d,\d{2}\s?€/.test(testo) || /€\s?\d{1,3}(\.\d{3})+,\d{2}\b/.test(testo)) return "it";
-    return "en";
+    if (/€\s?\d[\d,]*\.\d{2}\b/.test(testo)) return "en";
+    // senza simbolo dell'euro: le quantità Koinly hanno 8 decimali (1,00000000 in italiano, 1.00000000 in inglese)
+    var it = (testo.match(/\b\d+,\d{8}\b/g) || []).length, en = (testo.match(/\b\d+\.\d{8}\b/g) || []).length;
+    return it > en ? "it" : "en";
   }
   function numero(s, fmt) {
     if (s == null) return null;
@@ -156,5 +159,26 @@
     return r;
   }
 
-  return { leggiPdf: leggiPdf, leggiCsv: leggiCsv, numero: numero, formatoNumeri: formatoNumeri, tipoAttivo: tipoAttivo };
+  /* Elenco delle cessioni del Complete tax report («Transazioni di plusvalenze» / «Capital gains transactions»):
+     una riga per strato ceduto: data vendita, data acquisto, attivo, quantità, costo, ricavo, plusvalenza, note e wallet.
+     Le righe dello stesso attivo con la stessa data e ora di vendita formano una cessione. Le date sono nel fuso indicato dal report. */
+  var RIGA_CESSIONE = new RegExp("^(\\d{2}/\\d{2}/\\d{4})\\s+(\\d{2}:\\d{2})\\s+(\\d{2}/\\d{2}/\\d{4})\\s+(\\d{2}:\\d{2})\\s+(\\S+)\\s+(" + NUM + ")\\s+(" + NUM + ")\\s+(" + NUM + ")\\s+(" + NUM + ")\\s*(.*)$");
+  function leggiCessioniPdf(pagine) {
+    var testo = pagine.map(function (p) { return p.text; }).join("\n"), fmt = formatoNumeri(testo), a = annoDaTesto(testo);
+    var fuso = /Europe\/Rome/.test(testo) || /ANNO FISCALE \d{4}-12-31 23:00:00/.test(testo) ? "Europe/Rome" : "UTC";
+    var iso = function (d) { return d.slice(6, 10) + "-" + d.slice(3, 5) + "-" + d.slice(0, 2); };
+    var perCessione = {}, ordine = [], righe = 0;
+    testo.split("\n").forEach(function (r) {
+      var m = RIGA_CESSIONE.exec(r.trim()); if (!m) return;
+      righe++;
+      var k = m[1] + " " + m[2] + "|" + m[5].toUpperCase();
+      var c = perCessione[k];
+      if (!c) { c = perCessione[k] = { data: iso(m[1]), ora: m[2], cripto: m[5].toUpperCase(), quantita: 0, costo: 0, ricavo: 0, risultato: 0, strati: 0, wallet: "", note: "" }; ordine.push(k); }
+      c.quantita += numero(m[6], fmt) || 0; c.costo += numero(m[7], fmt) || 0; c.ricavo += numero(m[8], fmt) || 0; c.risultato += numero(m[9], fmt) || 0; c.strati++;
+      var resto = (m[10] || "").trim(); if (resto && !c.wallet) c.wallet = resto;
+    });
+    return { periodo: a.periodo, anno: a.anno, annoSolare: a.annoSolare, fuso: fuso, righe: righe, cessioni: ordine.map(function (k) { return perCessione[k]; }) };
+  }
+
+  return { leggiPdf: leggiPdf, leggiCessioniPdf: leggiCessioniPdf, leggiCsv: leggiCsv, numero: numero, formatoNumeri: formatoNumeri, tipoAttivo: tipoAttivo };
 });
