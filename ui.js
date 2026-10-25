@@ -797,7 +797,7 @@
   function pannelloAltri() {
     var LET = { H: "H · dividendi esteri", G: "G · interessi su conti bancari esteri", B: "B · proventi di OICR armonizzati (ETF UCITS)", I: "I · altri redditi di capitale esteri" };
     var h = '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Quadri RT e RM · altri redditi (broker esteri)</h3><div class="toolbar">' + (S.altri.length ? '<button type="button" class="btn gold" id="stampaAltri">Stampa / PDF</button>' : "") + '<button type="button" class="btn ghost" id="aggiungiAltro">Aggiungi un anno o una fonte</button></div></div>' +
-      '<p class="small">Per i redditi di intermediari esteri come eToro, da inserire a mano: plusvalenze e differenziali di azioni e CFD (quadro RT, sezione al 26%) e dividendi o interessi esteri senza ritenuta italiana (quadro RM). Le cripto-attività restano nel quadro RT delle cripto. I dati letti dal rendiconto eToro sono nella scheda <button type="button" class="btnlink" data-tab="5">eToro e broker esteri</button>.</p>';
+      '<p class="small">Per i redditi di intermediari esteri, riportati dalla scheda eToro (pulsante «Riporta nella scheda dei quadri») o inseriti a mano: plusvalenze e differenziali di azioni e CFD (quadro RT, sezione al 26%) e dividendi o interessi esteri senza ritenuta italiana (quadro RM). Le cripto-attività restano nel quadro RT delle cripto. I quadri calcolati dal rendiconto eToro, compreso il quadro RW, sono nella scheda <button type="button" class="btnlink" data-tab="5">eToro e broker esteri</button>.</p>';
     if (!S.altri.length) return h + "</div>";
     var inp = function (x, k, ph) { return '<input class="num" type="number" step="0.01" data-alt="' + x.id + '" data-k="' + k + '" value="' + esc(x[k]) + '" placeholder="' + (ph || "0") + '">'; };
     h += '<div class="scroll"><table class="det"><thead><tr><th>Anno</th><th>Fonte</th><th class="n">RT · corrispettivi</th><th class="n">RT · costi</th><th class="n">Minusvalenze anni precedenti</th><th>RM · tipo</th><th>RM · codice Stato</th><th class="n">RM · reddito lordo</th><th></th></tr></thead><tbody>' +
@@ -865,13 +865,14 @@
     render();
   }
   function viewEtoro() {
-    var h = '<h2>eToro e broker esteri</h2><p class="lead">Dal rendiconto eToro in PDF («Account statement», anche di più anni) si leggono per ogni anno le posizioni chiuse, i trasferimenti al wallet cripto, i dividendi e il portafoglio a inizio e fine anno. Sono dati di supporto: i quadri RT e RM dei redditi da broker esteri si inseriscono a mano nella scheda «Quadri RW, RT e F24».</p>' +
+    var h = '<h2>eToro e broker esteri</h2><p class="lead">Dal rendiconto eToro in PDF («Account statement», anche di più anni) si calcolano per ogni anno il quadro RT (plusvalenze e differenziali al 26%), il quadro RM (dividendi esteri senza ritenuta italiana) e il quadro RW (valori, IVAFE e IVACA), con i codici F24. Sotto, i dati letti: posizioni chiuse, trasferimenti al wallet cripto, dividendi e portafoglio a inizio e fine anno.</p>' +
       '<div class="panel"><div class="slots"><div class="slot' + (S.etoroErrore ? " err" : S.etoro ? " ok" : "") + '"><span class="req">Facoltativo</span><h3>Rendiconto eToro (PDF)</h3><p class="small muted" style="margin:0">Da eToro: Portafoglio › Rendiconto del conto, periodo dal primo deposito a fine anno, formato PDF. Si leggono solo le tabelle numeriche: nome, indirizzo e nome utente non vengono conservati.</p>' +
       '<input type="file" accept=".pdf" data-etoro>' + (S.etoroErrore ? '<p class="stato" style="color:var(--hi)">' + esc(S.etoroErrore) + "</p>" : S.etoro ? '<p class="stato"><b>' + esc(S.etoro.nome) + "</b><br>" + esc(S.etoro.d.periodo) + " · " + S.etoro.d.chiuse.length + " posizioni chiuse · " + S.etoro.d.attivita.length + " movimenti · " + S.etoro.d.dividendi.length + " dividendi · " + S.etoro.d.holdings.length + ' fotografie del portafoglio</p><button type="button" class="btnlink small" id="togliEtoro">Togli il file</button>' : "") + "</div></div></div>";
     if (!S.etoro) return h;
     var d = S.etoro.d, anni = ET.anni(d), a = S.etoroAnno, r = ET.riepilogo(d, a);
     h += '<div class="panel" style="margin-top:14px"><div class="grid2"><label class="f"><span class="t">Anno</span><select data-et="anno">' + anni.map(function (x) { return "<option" + (x === a ? " selected" : "") + ">" + x + "</option>"; }).join("") + "</select></label></div></div>";
     // posizioni chiuse per categoria
+    h += sezioneEtoroQuadri(d, a);
     var cat = Object.keys(r.rt);
     h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Posizioni chiuse nel ' + a + "</h3>" + (cat.length ? tab(["Categoria", "n:Posizioni", "n:Profitti", "n:Perdite", "n:Overnight", "n:Dividendi CFD", "n:Risultato"], cat.map(function (k) { var c = r.rt[k]; return [esc(k), c.n, E(c.profitti), E(c.perdite), E(c.overnight), E(c.dividendiCfd), E(c.risultato + c.overnight + c.dividendiCfd)]; }), 20) +
       '<p class="small">Profitti e perdite in euro come calcolati da eToro per ogni posizione. Sono CFD le posizioni con leva o allo scoperto (anche su cripto e azioni); le commissioni overnight e i dividendi dei CFD sono componenti del differenziale. Overnight convertiti dal dollaro al cambio medio implicito dei profitti dell\'anno' + (r.cambioMedio ? " (" + r.cambioMedio.toFixed(4) + " € per dollaro)" : "") + ".</p>" : '<p class="muted">Nessuna posizione chiusa nell\'anno.</p>') + "</div>";
@@ -894,6 +895,39 @@
         '<p class="small">Valori di mercato in euro calcolati da eToro alla data della fotografia. Le posizioni aperte o chiuse durante l\'anno vanno nel quadro RW con il valore all\'apertura o alla chiusura.</p>' : "") +
       '<p class="small">Saldo liquido del conto: ' + USD(r.rw.saldoInizioUsd) + " a inizio anno, " + USD(r.rw.saldoFineUsd) + " a fine anno." + (!r.rw.dataFine || !r.rw.dataInizio ? " <b>Il rendiconto non contiene la fotografia del portafoglio a una delle due date: chiedere a eToro il rendiconto a quella data o ricostruire il valore delle posizioni aperte.</b>" : "") + "</p></div>";
     return h;
+  }
+  function quadriEtoro() { return ET.quadriTutti(S.etoro.d, { sogliaValute: S.etoroSoglia || {} }); }
+  function sezioneEtoroQuadri(d, a) {
+    var q = quadriEtoro()[a];
+    var h = '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Quadri ' + esc(q.modello) + " · anno " + a + '</h3><div class="toolbar"><button type="button" class="btn ghost" id="etoroNeiQuadri">Riporta nella scheda dei quadri</button><button type="button" class="btn gold" id="stampaEtoro">Stampa / PDF</button></div></div>' + tabelleEtoro(q);
+    if (a <= 2022 && q.cripto.n) h += '<label class="toggle" style="margin-top:8px"><input type="checkbox" data-etsoglia="' + a + '"' + ((S.etoroSoglia || {})[a] ? " checked" : "") + "><span>Nel " + a + " la giacenza complessiva in valuta ha superato 51.645,69 € per almeno 7 giorni lavorativi: le cripto vendute sono imponibili</span></label>";
+    return h + "</div>";
+  }
+  function tabelleEtoro(q) {
+    var h = "", riga = function (x) { return "<tr><td>" + x.rigo + "</td><td>" + (x.col || "") + "</td><td>" + esc(x.descrizione) + '</td><td class="n">' + E(x.valore, 0) + "</td></tr>"; };
+    h += "<h4>" + esc(q.sezione26 || "Quadro RT, sezione al 26%") + "</h4>" + (q.rt.length ? '<table class="det" style="width:auto;min-width:60%"><thead><tr><th>Rigo</th><th>Col.</th><th>Descrizione</th><th class="n">Importo</th></tr></thead><tbody>' + q.rt.map(riga).join("") + "</tbody></table>" : '<p class="muted">Nessuna posizione chiusa su azioni o CFD nell\'anno: nessun dato da indicare.</p>');
+    h += "<h4>Quadro RM · rigo " + q.rmRigo + "</h4>" + (q.rm.length ? '<table class="det" style="width:auto;min-width:60%"><thead><tr><th>Rigo</th><th>Col. 1 · tipo</th><th>Col. 2 · Stato</th><th class="n">Col. 3 · reddito lordo</th><th class="n">Col. 4 · aliquota</th><th class="n">Col. ' + q.rmColImposta + ' · imposta</th><th class="n">Lordo esatto</th><th class="n">Ritenuta estera</th></tr></thead><tbody>' +
+      q.rm.map(function (x) { return "<tr><td>" + x.rigo + "</td><td>" + x.lettera + "</td><td>" + esc(x.stato || "") + ' <span class="small muted">' + esc(x.statoNome) + '</span></td><td class="n">' + E(x.lordo, 0) + '</td><td class="n">26</td><td class="n">' + E(x.imposta, 0) + '</td><td class="n">' + E(x.lordoEsatto) + '</td><td class="n">' + E(x.ritenutaEstera) + "</td></tr>"; }).join("") + "</tbody></table>" : '<p class="muted">Nessun dividendo su azioni o ETF nell\'anno: nessun dato da indicare.</p>');
+    h += "<h4>Quadro RW · valori sul conto eToro</h4>" + (q.rw.length ? '<table class="det" style="width:auto;min-width:60%"><thead><tr><th>Col. 3 · codice</th><th>Bene</th><th>Col. 4 · Stato</th><th class="n">Posizioni</th><th class="n">Valore iniziale</th><th class="n">Valore finale</th><th class="n">Giorni</th><th class="n">IVAFE</th><th class="n">IVACA</th></tr></thead><tbody>' +
+      q.rw.map(function (x) { return "<tr><td>" + x.codice + "</td><td>" + esc(x.descrizione) + (x.stimati ? ' <span class="small" style="color:var(--hi)">(' + x.stimati + " valori stimati)</span>" : "") + "</td><td>" + esc(x.stato || "—") + '</td><td class="n">' + x.n + '</td><td class="n">' + E(x.valoreIniziale, 0) + '</td><td class="n">' + E(x.valoreFinale, 0) + '</td><td class="n">' + x.giorni + '</td><td class="n">' + E(x.ivafe) + '</td><td class="n">' + E(x.ivaca) + "</td></tr>"; }).join("") + "</tbody></table>" + '<p class="small">' + esc(q.colonne) + ". Quota 100%, criterio di valore 1 (mercato). Un rigo per tipo di bene con i valori sommati delle posizioni e i giorni medi ponderati.</p>" : '<p class="muted">Nessuna attività detenuta su eToro nell\'anno: nessun dato da indicare.</p>');
+    h += "<h4>Modello F24</h4>" + (q.f24.length ? tab(["Codice tributo", "Voce", "n:Importo"], q.f24.map(function (x) { return ["<b>" + x.codice + "</b>", esc(x.descrizione), E(x.importo, 0)]; }), 20) : '<p class="muted">Nessuna imposta da versare dai dati eToro dell\'anno.</p>');
+    if (q.note.length) h += '<ul class="avvisi">' + q.note.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
+    return h;
+  }
+  function stampaEtoro() {
+    var tutti = quadriEtoro(), anni = Object.keys(tutti).map(Number).filter(function (a) { var q = tutti[a]; return q.rt.length || q.rm.length || q.rw.length; });
+    apriStampa(intestazione("Quadri da rendiconto eToro") + datiContribuente() + '<p class="small">Rendiconto: ' + esc(S.etoro.d.periodo) + ".</p>" + anni.map(function (a) { return "<h2>Anno " + a + " · " + esc(tutti[a].modello) + "</h2>" + tabelleEtoro(tutti[a]); }).join("") + firma());
+  }
+  // riporta RT al 26% e RM di ogni anno nella scheda dei quadri (righe con fonte «eToro», sostituite a ogni riporto)
+  function etoroNeiQuadri() {
+    var tutti = quadriEtoro();
+    S.altri = S.altri.filter(function (x) { return x.fonte !== "eToro"; });
+    Object.keys(tutti).map(Number).forEach(function (a) {
+      var q = tutti[a];
+      if (q.rt.length) S.altri.push({ id: altroId++, anno: a, fonte: "eToro", corr: q.corrispettivi, costi: q.costi, minus: q.minusUsate || "", lettera: "H", stato: "", lordo: "" });
+      q.rm.forEach(function (x) { if (x.lordo) S.altri.push({ id: altroId++, anno: a, fonte: "eToro", corr: "", costi: "", minus: "", lettera: "H", stato: x.stato, lordo: x.lordoEsatto }); });
+    });
+    S.tab = 4; render(); window.scrollTo(0, 0);
   }
   function USD(x) { return x == null || !isFinite(x) ? "–" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "USD" }).format(x); }
   function viewGuida() {
@@ -1000,6 +1034,7 @@
     if (t.matches("[data-banca]") && t.files.length) { caricaBanca(t.files); return; }
     if (t.matches("[data-koinlyces]") && t.files[0]) { caricaKoinlyCes(t.files[0]); return; }
     if (t.matches("[data-etoro]") && t.files[0]) { caricaEtoro(t.files[0]); return; }
+    if (t.matches("[data-etsoglia]")) { S.etoroSoglia = S.etoroSoglia || {}; S.etoroSoglia[+t.getAttribute("data-etsoglia")] = t.checked; render(); return; }
     if (t.matches("[data-et]")) { S.etoroAnno = +t.value; render(); return; }
     if (t.matches("[data-qanno]")) { var qa = +t.getAttribute("data-qanno"); S.quest.anni = S.quest.anni.filter(function (x) { return x !== qa; }); if (t.checked) S.quest.anni.push(qa); S.quest.anni.sort(); render(); return; }
     if (t.matches("[data-qrep]") && t.files.length) { caricaReportQuest(t.files); return; }
@@ -1028,6 +1063,8 @@
     else if (t.id === "stampaSanz") stampaSanzioni();
     else if (t.id === "stampaRW") stampaRW();
     else if (t.id === "salvaLavoro") salvaLavoro();
+    else if (t.id === "etoroNeiQuadri") etoroNeiQuadri();
+    else if (t.id === "stampaEtoro") stampaEtoro();
     else if (t.id === "togliEtoro") { S.etoro = null; S.etoroErrore = null; render(); }
     else if (t.id === "togliKoinlyCes") { S.koinlyCes = null; S.koinlyCesErrore = null; render(); }
     else if (t.id === "richiestaCliente") stampaRichiesta();

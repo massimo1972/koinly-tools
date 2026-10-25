@@ -1,7 +1,7 @@
 /* Koinly Tools · Copyright (C) 2026 Massimo Esposito · licenza GNU AGPL-3.0 (file LICENSE) */
 /* Koinly Tools · lettura del rendiconto eToro («Account statement» in PDF, versione italiana o inglese) e riepilogo per anno
    dei dati letti: posizioni chiuse per categoria, trasferimenti al wallet cripto, dividendi, airdrop, portafoglio e saldo.
-   I quadri non si calcolano qui: lo studio li inserisce a mano nella scheda dei quadri.
+   Dai dati si calcolano i quadri RT (sezione al 26%), RM (dividendi esteri) e RW (con IVAFE e IVACA) di ogni anno.
    Privacy: dal PDF si leggono solo tabelle numeriche; intestazione, nome utente e indirizzo non vengono conservati. */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) module.exports = factory();
@@ -202,5 +202,160 @@
     return Object.keys(s).map(Number).sort();
   }
 
-  return { leggi: leggi, riepilogo: riepilogo, anni: anni, categoria: categoria, num: num };
+  /* ---------- quadri del modello Redditi PF (istruzioni del fascicolo 2, modelli 2021-2026) ---------- */
+  // codici Stato (elenco del fascicolo 1) per i Paesi più frequenti, dal prefisso dell'ISIN; gli altri vanno indicati a mano
+  var STATI = { US: ["Stati Uniti", "069"], CA: ["Canada", "013"], IE: ["Irlanda", "040"], GB: ["Regno Unito", "031"], DE: ["Germania", "094"], FR: ["Francia", "029"], NL: ["Paesi Bassi", "050"], CH: ["Svizzera", "071"], CY: ["Cipro", "101"] };
+  var r2 = function (x) { return Math.round((x || 0) * 100) / 100; }, r0 = function (x) { return Math.round(x || 0); };
+
+  /* cambio euro per dollaro alla data: dalla fotografia del portafoglio o dalla posizione chiusa più vicina (euro / dollari) */
+  function cambi(d) {
+    var punti = [];
+    d.holdings.forEach(function (h) { var u = 0, e = 0; h.righe.forEach(function (x) { if (x.usd > 0 && x.eur > 0) { u += x.usd; e += x.eur; } }); if (u > 1) punti.push({ data: h.data, r: e / u }); });
+    d.chiuse.forEach(function (c) { if (c.profittoUsd && Math.abs(c.profittoUsd) >= 1 && c.profittoEur) punti.push({ data: c.chiusura, r: c.profittoEur / c.profittoUsd }); });
+    return function (data) {
+      if (!punti.length) return 0.9;
+      var best = punti[0], dist = Infinity, t = Date.parse(data);
+      punti.forEach(function (p) { var x = Math.abs(Date.parse(p.data) - t); if (x < dist) { dist = x; best = p; } });
+      return best.r;
+    };
+  }
+
+  /* posizioni detenute nell'anno, una per ID, con valore iniziale e finale in euro e giorni (quadro RW).
+     Valore iniziale: fotografia al 1/1 (o al 31/12 precedente), altrimenti importo investito all'apertura.
+     Valore finale: fotografia al 31/12, altrimenti valore alla chiusura (importo + profitto) o al trasferimento al wallet. */
+  function posizioniAnno(d, anno) {
+    var a = String(anno), ini = a + "-01-01", fin = a + "-12-31", cambio = cambi(d), out = [];
+    var fotoIni = d.holdings.filter(function (h) { return h.data === ini || h.data === (anno - 1) + "-12-31"; }).pop();
+    var fotoFin = d.holdings.filter(function (h) { return h.data === fin; })[0];
+    var aperture = {}, uscite = {}, chiuse = {}, foto = {}, tutte = {};
+    d.attivita.forEach(function (x) {
+      if (/^(Apri posizione|Open Position|AirDrop)/i.test(x.tipo) && x.id && !aperture[x.id]) aperture[x.id] = x;
+      if (/Trasferimento al wallet cripto|Transfer to Crypto Wallet/i.test(x.tipo) && x.id) uscite[x.id] = { data: x.data, usd: x.importo };
+    });
+    d.chiuse.forEach(function (c) { chiuse[c.id] = c; });
+    d.holdings.forEach(function (h) { h.righe.forEach(function (x) { foto[x.id] = x; }); });
+    [aperture, chiuse, foto].forEach(function (o) { Object.keys(o).forEach(function (id) { tutte[id] = true; }); });
+    Object.keys(tutte).forEach(function (id) {
+      var c = chiuse[id], ap = aperture[id], u = uscite[id], h = foto[id];
+      var hi = fotoIni && fotoIni.righe.filter(function (x) { return x.id === id; })[0], hf = fotoFin && fotoFin.righe.filter(function (x) { return x.id === id; })[0];
+      var dataAp = (c && c.apertura) || (ap && ap.data) || (h && h.apertura); if (!dataAp) return;
+      var dataCh = (c && c.chiusura) || (u && u.data) || null;
+      if (dataAp > fin || (dataCh && dataCh < ini)) return;
+      var tipo = c ? c.tipo : h ? h.tipo : ap ? ap.tipoAsset : "", leva = c ? c.leva : h ? h.leva : 1, dir = c ? c.direzione : h ? h.direzione : "Long";
+      var cat = categoria(tipo, leva, dir), nome = c ? c.nome : h ? h.asset : ap ? String(ap.dettagli).split("/")[0] : id;
+      var investito = c ? c.importo : ap ? ap.importo : h ? (h.tassoApertura || 0) * (h.unita || 0) : 0, nota = [];
+      var vi = dataAp >= ini ? investito * cambio(dataAp) : hi ? hi.eur : null;
+      if (vi == null) { vi = investito * cambio(ini); nota.push("valore iniziale stimato dal costo: manca la fotografia al 1/1"); }
+      var vf;
+      if (dataCh && dataCh <= fin) vf = u ? u.usd * cambio(dataCh) : (c.profittoEur || 0) + (c.importo || 0) * cambio(dataCh);
+      else if (hf) vf = hf.eur;
+      else { vf = investito * cambio(fin); nota.push("valore finale stimato dal costo: manca la fotografia al 31/12"); }
+      var dal = dataAp > ini ? dataAp : ini, al = dataCh && dataCh <= fin ? dataCh : fin;
+      out.push({ id: id, nome: nome, categoria: cat, isin: (c && c.isin) || (h && h.isin) || "", dal: dal, al: al, giorni: Math.round((Date.parse(al) - Date.parse(dal)) / 86400000) + 1, valoreIniziale: vi, valoreFinale: vf, nota: nota.join("; ") });
+    });
+    return out;
+  }
+
+  /* quadri per l'anno: RT (sezione al 26% per azioni e CFD; cripto secondo il regime dell'anno), RM (dividendi), RW (righe per tipo di bene).
+     opz: { sogliaValute: true se la giacenza in valuta ha superato 51.645,69 € per 7 giorni lavorativi (cripto fino al 2022),
+            minusPrecedenti: minusvalenze riportabili della sezione al 26% } */
+  function quadri(d, anno, opz) {
+    var o = opz || {}, r = riepilogo(d, anno), cambio = cambi(d), out = { anno: anno, modello: "Redditi PF " + (anno + 1), rt: [], rm: [], rw: [], f24: [], note: [] };
+    var add = function (rigo, col, desc, v) { out.rt.push({ rigo: rigo, col: col, descrizione: desc, valore: v }); };
+    // RT: corrispettivo = importo investito + profitto (in euro), costo = importo investito al cambio implicito della posizione
+    var tot = { corr: 0, costo: 0, n: 0 }, cripto = { corr: 0, costo: 0, n: 0 };
+    d.chiuse.filter(function (c) { return c.chiusura && c.chiusura.slice(0, 4) === String(anno); }).forEach(function (c) {
+      var rr = c.profittoUsd && Math.abs(c.profittoUsd) >= 0.5 && c.profittoEur ? c.profittoEur / c.profittoUsd : cambio(c.chiusura);
+      var costo = (c.importo || 0) * rr, z = c.categoria === "Cripto" ? cripto : tot;
+      z.corr += costo + (c.profittoEur || 0); z.costo += costo; z.n++;
+    });
+    var cfd = r.rt.CFD; if (cfd) { tot.costo -= cfd.overnight; tot.corr += cfd.dividendiCfd; }
+    var criptoInValute = anno <= 2022;
+    if (criptoInValute && o.sogliaValute) { tot.corr += cripto.corr; tot.costo += cripto.costo; }
+    var diff = r0(tot.corr) - r0(tot.costo), plus = diff > 0 ? diff : 0, minus = diff < 0 ? -diff : 0, mp = Math.min(r0(o.minusPrecedenti), plus), base = plus - mp, imp = r0(base * 0.26);
+    out.corrispettivi = r0(tot.corr); out.costi = r0(tot.costo); out.minusUsate = mp;
+    if (tot.n) {
+      if (anno <= 2023) {
+        out.sezione26 = "Quadro RT, sezione " + (anno === 2023 ? "II-A" : "II") + " · redditi diversi al 26%";
+        add("RT21", "", "Totale dei corrispettivi", r0(tot.corr)); add("RT22", "3", "Totale dei costi (compresi gli oneri overnight dei CFD)", r0(tot.costo));
+        add("RT23", "1", "Minusvalenza", minus); add("RT23", "2", "Plusvalenza", plus);
+        add("RT24", "", "Minusvalenze degli anni precedenti (da RT93)", mp);
+        add("RT26", "", "Imponibile", base); add("RT27", "", "Imposta sostitutiva 26%", imp); add("RT29", "", "Imposta dovuta", imp);
+        if (minus) add("RT93", "5", "Minusvalenza dell'anno da riportare (4 anni)", minus);
+      } else {
+        out.sezione26 = "Quadro RT, sezione II-A · redditi diversi al 26%";
+        add("RT11", "1", "Totale dei corrispettivi", r0(tot.corr)); add("RT11", "2", "Totale dei costi (compresi gli oneri overnight dei CFD)", r0(tot.costo));
+        add("RT13", "", "Minusvalenze degli anni precedenti", mp);
+        add("RT52", "1", "Minusvalenza", minus); add("RT52", "2", "Plusvalenza", plus);
+        add("RT72", "", "Imponibile", base); add("RT73", "", "Imposta sostitutiva 26%", imp); add("RT74", "", "Imposta dovuta", imp);
+        if (minus) add("RT102", "", "Minusvalenza dell'anno da riportare (4 anni)", minus);
+      }
+      if (imp) out.f24.push({ codice: "1100", descrizione: "Imposta sostitutiva su plusvalenze e differenziali (quadro RT)", importo: imp });
+    }
+    out.minusvalenzaDaRiportare = minus;
+    out.cripto = { corrispettivi: r2(cripto.corr), costi: r2(cripto.costo), n: cripto.n };
+    if (cripto.n) {
+      if (criptoInValute) out.note.push("Cripto vendute nel " + anno + " (" + cripto.n + " posizioni, risultato " + r2(cripto.corr - cripto.costo) + " €): fino al 2022 seguono il regime delle valute (art. 67 c. 1-ter TUIR) e sono tassate solo se la giacenza complessiva in valuta ha superato 51.645,69 € per almeno 7 giorni lavorativi continui; " + (o.sogliaValute ? "soglia indicata come superata: comprese nella sezione al 26%." : "soglia non superata: non imponibili (né deducibili le minusvalenze)."));
+      else out.note.push("Cripto vendute nel " + anno + " (corrispettivi " + r2(cripto.corr) + " €, costi " + r2(cripto.costo) + " €): vanno sommate alle cessioni degli altri wallet ed exchange nel quadro RT delle cripto-attività (art. 67 c. 1 lett. c-sexies, codice F24 1715).");
+    }
+    if (cfd) out.note.push("CFD (anche su cripto e azioni con leva o allo scoperto): differenziali art. 67 c. 1 lett. c-quater TUIR, nella sezione al 26%; le commissioni overnight sono oneri e i dividendi su CFD componenti positive.");
+    if (tot.n || cripto.n) out.note.push("Corrispettivi e costi in euro dal profitto in euro di eToro e dall'importo investito al cambio implicito della posizione; a rigore ciascuno va al cambio del giorno dell'operazione (art. 9 c. 2 TUIR).");
+
+    // RM: dividendi di azioni ed ETF senza ritenuta italiana, al lordo della ritenuta estera, per Stato (dall'ISIN)
+    var perStato = {};
+    r.rm.righe.forEach(function (x) { var k = (x.isin || "").slice(0, 2) || "??", z = perStato[k] || (perStato[k] = { lordo: 0, ritenuta: 0, n: 0 }); z.n++; z.lordo += (x.nettoEur || 0) + (x.ritenutaEur || 0); z.ritenuta += x.ritenutaEur || 0; });
+    out.rmRigo = anno <= 2023 ? "RM12" : "RM31"; out.rmColImposta = anno <= 2023 ? "6" : "8";
+    Object.keys(perStato).sort().forEach(function (k) {
+      var z = perStato[k], st = STATI[k];
+      out.rm.push({ rigo: out.rmRigo, lettera: "H", stato: st ? st[1] : "", statoNome: st ? st[0] : "ISIN " + k + ": codice Stato da indicare", lordoEsatto: r2(z.lordo), lordo: r0(z.lordo), imposta: r0(r0(z.lordo) * 0.26), ritenutaEstera: r2(z.ritenuta), n: z.n });
+    });
+    var impRM = out.rm.reduce(function (s, x) { return s + x.imposta; }, 0);
+    if (impRM) out.f24.push({ codice: "1242", descrizione: "Imposta sostitutiva sui redditi di capitale di fonte estera (quadro RM)", importo: impRM });
+    if (out.rm.length) out.note.push("Dividendi esteri: quadro RM, rigo " + out.rmRigo + ", lettera H, al lordo della ritenuta estera (26%, senza credito per la ritenuta subita all'estero); in unità di euro." + (out.rm.every(function (x) { return !x.lordo; }) ? " Arrotondati all'euro valgono zero." : ""));
+
+    // RW: una riga per tipo di bene, con valori e giorni dalle posizioni dell'anno
+    var p = posizioniAnno(d, anno), gruppi = {}, bis = anno % 4 === 0 ? 366 : 365;
+    p.forEach(function (x) {
+      var codice = x.categoria === "Cripto" ? (anno >= 2023 ? "21" : "14") : x.categoria === "Azioni" ? "2" : x.categoria === "ETF" ? "4" : x.categoria === "CFD" ? "9" : "20";
+      var g = gruppi[codice] || (gruppi[codice] = { codice: codice, n: 0, valoreIniziale: 0, valoreFinale: 0, imposta: 0, stimati: 0, ponderati: 0 });
+      g.n++; g.valoreIniziale += x.valoreIniziale; g.valoreFinale += x.valoreFinale; g.ponderati += x.giorni * x.valoreFinale; if (x.nota) g.stimati++;
+      g.imposta += x.valoreFinale * 0.002 * x.giorni / bis;
+    });
+    var ivafe = 0, ivaca = 0, DESC = { "21": "Cripto-attività su eToro", "14": "Cripto-attività su eToro", "2": "Azioni presso eToro", "4": "ETF presso eToro", "9": "Contratti derivati (CFD) presso eToro", "20": "Altri strumenti presso eToro" };
+    Object.keys(gruppi).sort(function (a, b) { return a - b; }).forEach(function (k) {
+      var g = gruppi[k], cr = k === "21" || k === "14";
+      var riga = { codice: k, descrizione: DESC[k], stato: cr ? "" : "101", n: g.n, valoreIniziale: r0(g.valoreIniziale), valoreFinale: r0(g.valoreFinale), giorni: Math.min(bis, Math.round(g.ponderati / (g.valoreFinale || 1)) || 0), stimati: g.stimati, ivafe: 0, ivaca: 0 };
+      if (k === "21") { riga.ivaca = r2(g.imposta); ivaca += g.imposta; } else if (!cr) { riga.ivafe = r2(g.imposta); ivafe += g.imposta; }
+      out.rw.push(riga);
+    });
+    if (r.rw.saldoFineUsd != null && (r.rw.saldoFineUsd > 0 || r.rw.saldoInizioUsd > 0)) out.rw.push({ codice: "1", descrizione: "Liquidità sul conto eToro (USD)", stato: "101", n: 1, valoreIniziale: r0((r.rw.saldoInizioUsd || 0) * cambio(anno + "-01-01")), valoreFinale: r0((r.rw.saldoFineUsd || 0) * cambio(anno + "-12-31")), giorni: bis, ivafe: 0, ivaca: 0 });
+    out.ivafe = r2(ivafe); out.ivaca = r2(ivaca);
+    out.colonne = anno >= 2023 ? "IVAFE col. 29-30 (totale RW6, codice F24 4043); IVACA col. 33-34 (totale RW8, codice F24 1727)" : "IVAFE col. 11-15 (totale RW6, codice F24 4043)";
+    if (r0(ivafe) >= 12) out.f24.push({ codice: "4043", descrizione: "IVAFE saldo (RW6)", importo: r0(ivafe) });
+    else if (ivafe > 0) out.note.push("IVAFE di " + r2(ivafe) + " €: sotto i 12 € non si versa.");
+    if (r0(ivaca) >= 12) out.f24.push({ codice: "1727", descrizione: "IVACA saldo (RW8)", importo: r0(ivaca) });
+    else if (ivaca > 0) out.note.push("IVACA sulle cripto eToro di " + r2(ivaca) + " €: va sommata a quella degli altri wallet (RW8); sotto i 12 € complessivi non si versa.");
+    if (gruppi["14"]) out.note.push("Fino al 2022 le cripto vanno nel quadro RW con il codice 14, senza Stato estero e senza IVAFE.");
+    if (gruppi["9"]) out.note.push("CFD nel quadro RW (codice 9): l'Agenzia non indica il criterio di valore; qui il margine investito o il valore alla chiusura. L'IVAFE sui CFD è prudenziale.");
+    if (out.rw.some(function (x) { return x.codice === "1"; })) out.note.push("Liquidità sul conto eToro (codice 1): l'IVAFE fissa di 34,20 € vale per i conti bancari con giacenza media oltre 5.000 €; per eToro, intermediario non bancario, il trattamento è da valutare.");
+    if (p.some(function (x) { return x.nota; })) out.note.push("Alcuni valori del quadro RW sono stimati dal costo perché il rendiconto non contiene la fotografia del portafoglio a inizio o fine anno: chiedere a eToro il rendiconto a quella data.");
+    out.posizioni = p;
+    return out;
+  }
+
+  /* quadri di tutti gli anni, con le minusvalenze della sezione al 26% riportate per quattro anni */
+  function quadriTutti(d, opz) {
+    var o = opz || {}, riporti = [], out = {};
+    anni(d).forEach(function (a) {
+      riporti = riporti.filter(function (m) { return a - m.anno <= 4 && m.residuo > 0; });
+      var disp = riporti.reduce(function (s, m) { return s + m.residuo; }, 0);
+      var q = quadri(d, a, { minusPrecedenti: disp, sogliaValute: !!(o.sogliaValute && o.sogliaValute[a]) });
+      var usate = q.minusUsate; riporti.forEach(function (m) { var u = Math.min(m.residuo, usate); m.residuo -= u; usate -= u; });
+      if (q.minusvalenzaDaRiportare) riporti.push({ anno: a, residuo: q.minusvalenzaDaRiportare });
+      out[a] = q;
+    });
+    return out;
+  }
+
+  return { leggi: leggi, riepilogo: riepilogo, quadri: quadri, quadriTutti: quadriTutti, posizioniAnno: posizioniAnno, anni: anni, categoria: categoria, num: num };
 });

@@ -37,7 +37,7 @@ Uscite: tabella a video con i periodi; Excel (fogli «Righi RW» e «Riepilogo p
   - permuta: valore del momento;
   - interessi, reward e airdrop: valore del giorno;
   - trasferimenti tra wallet propri: nessun effetto, e quelli non abbinati da Koinly sono riconosciuti in automatico.
-- **eToro e broker esteri:** lettura del rendiconto eToro in PDF (posizioni chiuse per categoria, trasferimenti al wallet cripto con il costo d'origine, dividendi, airdrop, portafoglio a inizio e fine anno per strumento, saldo); i quadri RT (sezione al 26%) e RM degli altri redditi si inseriscono a mano nella scheda dei quadri.
+- **eToro e broker esteri:** lettura del rendiconto eToro in PDF (posizioni chiuse per categoria, trasferimenti al wallet cripto con il costo d'origine, dividendi, airdrop, portafoglio a inizio e fine anno per strumento, saldo); calcolo per anno dei quadri RT (sezione al 26%, minusvalenze riportate per quattro anni), RM (dividendi al lordo, per Stato) e RW (codici 1, 2, 9, 14/21 con IVAFE e IVACA) e dei codici F24; i valori RT e RM si riportano nella scheda dei quadri, dove si possono anche inserire a mano.
 - **Operazioni da verificare e richiesta al cliente:**
   - ogni deposito o prelievo verso wallet non collegati riporta degli indizi: destinazione e hash assenti, probabile invio di prova, uscita di somme appena ricevute in prestito (anche se il prestito è in valuta e viene subito cambiato in stablecoin);
   - il pulsante «Richiesta di chiarimenti al cliente» stampa le operazioni filtrate non ancora corrette, con le domande e i documenti da chiedere.

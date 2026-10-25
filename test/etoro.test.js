@@ -54,4 +54,18 @@ t("Trasferimento al wallet cripto: non è una cessione; quantità, valore e cost
 t("Un PDF che non è un rendiconto eToro viene rifiutato", () => {
   assert.throws(() => T.leggi([{ n: 1, text: "Fattura n. 12 del 2024" }]));
 });
+t("Quadri 2024: RT al 26% (azioni e CFD, cripto a parte), RM per Stato al lordo, RW per tipo di bene", () => {
+  const q = T.quadri(d, 2024, {});
+  assert.equal(q.rt[0].rigo, "RT11");
+  // azioni: costo 120 × 0,92 = 110,40, corrispettivo 156,40; CFD: costo 200 × 0,9 = 180 + overnight, corrispettivo 153 + dividendi CFD
+  near(q.corrispettivi, 156.4 + 153 + 0.38, 1); assert.ok(q.costi >= 290);
+  assert.equal(q.cripto.n, 1);
+  assert.equal(q.rmRigo, "RM31"); assert.equal(q.rm[0].stato, "069"); near(q.rm[0].lordoEsatto, 0.271);
+  assert.deepEqual(q.rw.map((x) => x.codice).sort(), ["1", "2", "21", "9"]);
+  assert.ok(q.rw.find((x) => x.codice === "21").ivaca > 0);
+});
+t("Anni senza dati: nessun rigo; minusvalenze riportate negli anni successivi", () => {
+  const tutti = T.quadriTutti(d);
+  assert.equal(tutti[2023].rt.length, 0); assert.equal(tutti[2023].rm.length, 0);
+});
 console.log("\n" + n + " prove superate");
