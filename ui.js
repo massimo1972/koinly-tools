@@ -6,9 +6,10 @@
   if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = "comune/vendor/pdf.worker.min.js";
   var app = document.getElementById("app");
 
-  var TABS = ["Caricamento file", "Giorni di detenzione e IVACA", "Costi di carico", "Questionario AdE", "Sanzioni RW e RT", "Quadri RW, RT e F24", "Guida"];
-  var VISTE = ["caricamento", "ivaca", "costi", "questionario", "sanzioni", "modelli", "guida"];
-  var S = { tab: 0, tx: null, inizio: null, fine: null, anno: null, fuso: "UTC", quota: 100, inclusi: {}, valori: {}, aperti: {}, spamAperti: false, errore: {}, saldiFile: [] };
+  // ordine delle schede scelto dallo studio, numerate da 0
+  var TABS = ["Guida", "Caricamento file", "Costi di carico (LIFO)", "Giorni di detenzione, IVACA e IVAFE", "Quadri RW, RT e F24", "Sanzioni RW, RT e RM", "Questionario AdE"];
+  var VISTE = ["guida", "caricamento", "costi", "ivaca", "modelli", "sanzioni", "questionario"];
+  var S = { tab: 1, tx: null, inizio: null, fine: null, anno: null, fuso: "UTC", quota: 100, inclusi: {}, valori: {}, aperti: {}, spamAperti: false, errore: {}, saldiFile: [] };
   var calcolo = null, ivaca = null;
 
   /* ---------- formattazione ---------- */
@@ -130,7 +131,7 @@
   /* ---------- viste ---------- */
   function nav() {
     document.getElementById("steps").innerHTML = TABS.map(function (t, i) {
-      return '<button type="button" data-tab="' + i + '"' + (S.tab === i ? ' aria-current="step"' : "") + '><span class="n">' + (i + 1) + "</span>" + esc(t) + "</button>";
+      return '<button type="button" data-tab="' + i + '"' + (S.tab === i ? ' aria-current="step"' : "") + '><span class="n">' + i + "</span>" + esc(t) + "</button>";
     }).join("");
   }
   function slot(id, titolo, obbl, testo, accetta) {
@@ -160,7 +161,7 @@
     var B = S.banca, Q = S.quest;
     var h = '<h2>Caricamento file</h2><p class="lead">Qui si caricano tutti i file della pratica. Per ciascuno è indicato che cosa contiene, dove si scarica e in quale scheda si usa. Le transazioni e i saldi di Koinly sono indispensabili; gli altri file aggiungono riscontri e quadri.</p>' +
       '<div class="banner beta-avviso"><strong>Versione beta</strong><p>Koinly Tools è in fase di test: i risultati vanno verificati con lo studio prima di usarli per la dichiarazione o per qualsiasi versamento. Segnalazioni e suggerimenti sono benvenuti.</p></div>' +
-      '<div class="banner"><strong>Riservatezza</strong><p>I file restano in questo browser: non vengono salvati né inviati in rete. Non sapete quali file caricare? <button type="button" class="btnlink" data-tab="6">Leggete la guida</button>.</p></div>';
+      '<div class="banner"><strong>Riservatezza</strong><p>I file restano in questo browser: non vengono salvati né inviati in rete. Non sapete quali file caricare? <button type="button" class="btnlink" data-tab="0">Leggete la guida</button>.</p></div>';
     h += '<div class="panel"><h3 style="margin-top:0">Koinly</h3><div class="slots">' +
       slot("tx", "Transazioni", true, "CSV con tutte le transazioni di tutti gli anni, dal primo acquisto: «backup_transactions_koinly.csv» (Koinly › Transactions › esporta) oppure «transaction history». Serve a tutte le schede: periodi di detenzione, costi di carico, questionario.", ".csv,text/csv") +
       slot("inizio", "Saldi a inizio anno", true, "«Beginning of year holdings» in CSV (Koinly › Tax reports), uno per ogni anno da esaminare: si possono caricare più file insieme, fino a 5 anni prima dell'ultimo. Quantità e valori al 1° gennaio; il report di fine dell'anno precedente vale come saldo iniziale. Serve ai giorni di detenzione e all'IVACA.", ".csv,.pdf") +
@@ -184,7 +185,7 @@
   }
   function viewIvaca() {
     var h = '<h2>Giorni di detenzione e IVACA</h2><p class="lead">Dalle transazioni Koinly si ricostruiscono, cripto per cripto e sul totale di tutti i wallet, i giorni di detenzione dell\'anno e i periodi a quantità costante; con il valore di fine anno si calcola l\'imposta sul valore delle cripto-attività (quadro RW, col. 33).</p>';
-    if (!S.tx || !S.saldiFile.length) return h + '<p class="muted" style="margin-top:14px">Per calcolare servono le transazioni e i saldi di inizio e fine anno di almeno un anno: ' + (!S.tx ? "mancano le transazioni" : "mancano i saldi") + '. Caricateli nella scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>.</p>';
+    if (!S.tx || !S.saldiFile.length) return h + '<p class="muted" style="margin-top:14px">Per calcolare servono le transazioni e i saldi di inizio e fine anno di almeno un anno: ' + (!S.tx ? "mancano le transazioni" : "mancano i saldi") + '. Caricateli nella scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>.</p>';
     var anni = anniIvaca();
     h += '<div class="panel" style="margin-top:14px"><div class="grid2">' +
       '<label class="f"><span class="t">Anno</span><select data-k="anno">' + anni.map(function (a) { var ok = saldiInizioAnno(a) && saldiFineAnno(a); return '<option value="' + a + '"' + (a === S.anno ? " selected" : "") + ">" + a + (ok ? "" : " · mancano i saldi") + (a <= 2022 ? " · solo monitoraggio" : "") + "</option>"; }).join("") + '</select><span class="small">Fino a 5 anni prima dell\'ultimo anno importato (' + anni[anni.length - 1] + ").</span></label>" +
@@ -194,7 +195,7 @@
     h += riepilogoPluriennale();
     if (!calcolo) {
       var mi = [!S.inizio && "i saldi al 1° gennaio " + S.anno + " (o al 31/12/" + (S.anno - 1) + ")", !S.fine && "i saldi al 31/12/" + S.anno].filter(Boolean);
-      return h + '<p class="muted" style="margin-top:14px">Per il ' + S.anno + " mancano " + mi.join(" e ") + '. Caricateli nella scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>.</p>';
+      return h + '<p class="muted" style="margin-top:14px">Per il ' + S.anno + " mancano " + mi.join(" e ") + '. Caricateli nella scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>.</p>';
     }
     if (ivaca.nonDovuta) h += '<div class="banner" style="margin-top:14px"><strong>Anno ' + S.anno + '</strong><p>' + esc(ivaca.nonDovuta) + "</p></div>";
     return h + risultati();
@@ -423,14 +424,14 @@
   }
   function viewCosti() {
     var h = '<h2>Costi di carico</h2><p class="lead">Ricostruzione dei costi d\'acquisto dall\'origine, con strati LIFO globali: una pila per cripto, unica per tutti i wallet e per tutti gli anni. Acquisto al costo pagato, commissioni comprese; permuta al valore del momento; interessi, reward e airdrop al valore del giorno. Dove i dati di Koinly sono incompleti, lo studio corregge le operazioni qui sotto: i calcoli possono quindi differire da Koinly.</p>';
-    if (!S.tx) return h + '<p class="muted">Caricate il file delle transazioni nella scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>. I report di inizio e fine anno, se caricati, servono al riscontro con i costi di Koinly.</p>';
+    if (!S.tx) return h + '<p class="muted">Caricate il file delle transazioni nella scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>. I report di inizio e fine anno, se caricati, servono al riscontro con i costi di Koinly.</p>';
     var anni = anniCosti(); if (!S.costi.anno) S.costi.anno = S.anno && anni.indexOf(S.anno) >= 0 ? S.anno : anni.filter(function (a) { return a < new Date().getFullYear(); }).pop() || anni[anni.length - 1];
     var anno = S.costi.anno, r = confrontoCosti(costiAnno(anno), anno), cf = r.confronto;
     var vere = r.righe.filter(function (x) { return !x.spam; });
     var tv = r.totali.controValutaStable, tt = r.totali.tutte;
     h += '<div class="panel"><div class="grid2"><label class="f"><span class="t">Anno</span><select data-cs="anno">' + anni.map(function (a) { return "<option" + (a === anno ? " selected" : "") + ">" + a + "</option>"; }).join("") + "</select></label>" +
       '<label class="f"><span class="t">Permute tra cripto dal 2023</span><select data-cs="swapNeutri"><option value="si"' + (S.costi.swapNeutri ? " selected" : "") + '>Swap neutri: costo trasferito (criterio dello studio)</option><option value="no"' + (S.costi.swapNeutri ? "" : " selected") + '>Al valore del momento (come Koinly)</option></select><span class="small">Dal 2023 permute tra cripto, acquisti con stablecoin e scambi tra stablecoin non realizzano; restano cessioni le vendite contro valuta e contro stablecoin. Prima del 2023 le permute sono sempre al valore del momento.</span></label>' +
-      '<div class="f"><span class="t">Lavoro dello studio</span><span class="small">' + Object.keys(S.correzioni).length + ' correzioni in questa sessione. <button type="button" class="btn ghost" id="salvaLavoro">Salva in un file</button> Il file si ricarica nella scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>.</span></div></div></div>';
+      '<div class="f"><span class="t">Lavoro dello studio</span><span class="small">' + Object.keys(S.correzioni).length + ' correzioni in questa sessione. <button type="button" class="btn ghost" id="salvaLavoro">Salva in un file</button> Il file si ricarica nella scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>.</span></div></div></div>';
     var da = r.daVerificare, aperte = da.filter(function (v) { return !S.correzioni[v.riga]; });
     h += '<div class="cards" style="margin-top:14px">' +
       '<div class="card"><div class="k">Costo al 1/1/' + anno + "</div><div class=\"v\">" + E(vere.reduce(function (s, x) { return s + x.costoInizio; }, 0), 0) + "</div>" + (cf && cf.koinlyInizio ? '<div class="k">Koinly ' + E(cf.koinlyInizio, 0) + "</div>" : "") + "</div>" +
@@ -584,7 +585,7 @@
     var B = S.banca, b = bancaRiscontrata(), kSenza = BK.riscontra(S.banca.movimenti.map(function (x) { return Object.assign({}, x); }), movKoinlyValuta()).koinlySenzaBanca;
     return '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Estratti conto bancari (anonimizzati)</h3>' +
       '<p class="small">Caricate gli estratti conto in PDF. Alla lettura si tengono <b>solo</b> data, importo e exchange dei movimenti verso o da piattaforme di cripto-attività; tutte le altre righe (spese, stipendi, utenze) sono scartate e non vengono mostrate né salvate. Anche per i movimenti tenuti non si conservano nomi, IBAN, indirizzi o causali. I file restano in questo browser.</p>' +
-      (B.file ? "" : '<p class="small muted">Gli estratti conto si caricano nella scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>.</p>') +
+      (B.file ? "" : '<p class="small muted">Gli estratti conto si caricano nella scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>.</p>') +
       (B.errore ? '<p class="small" style="color:var(--hi)">' + esc(B.errore) + "</p>" : "") +
       (B.file ? '<p class="small">' + B.file + " file letti: " + B.lette + " movimenti, di cui " + B.scartate + " scartati perché non riguardano cripto-attività; " + B.movimenti.length + " tenuti. " + '<button type="button" class="btnlink" id="svuotaBanca">Togli gli estratti conto</button></p>' +
         tab(["Data", "Movimento", "n:Importo", "Riscontro con Koinly"], b.map(function (x) { return [it(x.data), esc(x.descrizione), E(x.segno * x.importo), x.riscontro ? "✓ " + esc(x.riscontro.verso) + " del " + it(x.riscontro.data) + " su " + esc(x.riscontro.intermediario) : '<span style="color:var(--mid)">non trovato in Koinly</span>']; }), 150) +
@@ -686,10 +687,10 @@
   }
   function viewQuestionario() {
     var h = '<h2>Questionario dell\'Agenzia delle Entrate</h2><p class="lead">Elementi di risposta alle domande tipo sulle cripto-attività (inviti ex art. 32 DPR 600/1973), ricavati dai file Koinly e dai costi di carico ricostruiti. Le parti che Koinly non contiene sono indicate come da integrare.</p>';
-    if (!S.tx) return h + '<p class="muted">Caricate il file delle transazioni nella scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>.</p>';
+    if (!S.tx) return h + '<p class="muted">Caricate il file delle transazioni nella scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>.</p>';
     var anni = anniCosti().filter(function (a) { return a >= 2017; });
     h += '<div class="panel"><div class="grid2"><div class="f"><span class="t">Anni richiesti dall\'Agenzia</span><div class="row">' + anni.map(function (a) { return '<label class="toggle"><input type="checkbox" data-qanno="' + a + '"' + (S.quest.anni.indexOf(a) >= 0 ? " checked" : "") + "><span>" + a + "</span></label>"; }).join("") + "</div></div>" +
-      '<div class="f"><span class="t">Report Koinly dei saldi</span><span class="small">' + (S.quest.nomiReport.length ? esc(S.quest.nomiReport.join("; ")) : "Nessuno: i prezzi alle date richieste si caricano con i report di inizio e fine anno") + ' (scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>).</span></div></div></div>';
+      '<div class="f"><span class="t">Report Koinly dei saldi</span><span class="small">' + (S.quest.nomiReport.length ? esc(S.quest.nomiReport.join("; ")) : "Nessuno: i prezzi alle date richieste si caricano con i report di inizio e fine anno") + ' (scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>).</span></div></div></div>';
     var q = calcolaQuest();
     if (!q) return h + '<p class="muted" style="margin-top:14px">Scegliete gli anni richiesti dall\'Agenzia.</p>';
     var miei = q.d3.chiavi.filter(function (c) { return attribuzione(c) === "mio"; }).length, chiarire = q.d3.chiavi.filter(function (c) { return attribuzione(c) === "da chiarire"; }).length;
@@ -1046,7 +1047,7 @@
   }
   function sezioneEtoro() {
     var h = '<div class="panel" id="quadriEtoro" style="margin-top:14px"><h3 style="margin-top:0">Quadri dal rendiconto eToro</h3>';
-    if (!S.etoro) return h + '<p class="muted">Caricate il rendiconto eToro in PDF nella scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>: qui compaiono i quadri RT, RM e RW calcolati per ogni anno.</p></div>';
+    if (!S.etoro) return h + '<p class="muted">Caricate il rendiconto eToro in PDF nella scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>: qui compaiono i quadri RT, RM e RW calcolati per ogni anno.</p></div>';
     if (!S.etoro) return h;
     var d = S.etoro.d, anni = ET.anni(d), a = S.etoroAnno, r = ET.riepilogo(d, a);
     h += '<p class="small">' + esc(S.etoro.nome) + " · " + esc(d.periodo) + '</p><div class="grid2"><label class="f"><span class="t">Anno</span><select data-et="anno">' + anni.map(function (x) { return "<option" + (x === a ? " selected" : "") + ">" + x + "</option>"; }).join("") + "</select></label></div></div>";
