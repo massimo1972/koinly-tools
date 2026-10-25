@@ -8,7 +8,7 @@
 
   var TABS = ["Caricamento file", "Giorni di detenzione e IVACA", "Costi di carico", "Questionario AdE", "Sanzioni RW e RT", "Quadri RW, RT e F24", "Guida"];
   var VISTE = ["caricamento", "ivaca", "costi", "questionario", "sanzioni", "modelli", "guida"];
-  var S = { tab: 0, tx: null, inizio: null, fine: null, anno: null, fuso: "UTC", quota: 100, inclusi: {}, valori: {}, aperti: {}, spamAperti: false, errore: {} };
+  var S = { tab: 0, tx: null, inizio: null, fine: null, anno: null, fuso: "UTC", quota: 100, inclusi: {}, valori: {}, aperti: {}, spamAperti: false, errore: {}, saldiFile: [] };
   var calcolo = null, ivaca = null;
 
   /* ---------- formattazione ---------- */
@@ -29,52 +29,98 @@
 
   /* ---------- lettura dei file ---------- */
   async function testoPdf(f) { return await window.LumesPdf.pdfToPages(window.pdfjsLib, new Uint8Array(await f.arrayBuffer())); }
-  async function carica(slot, f) {
+  async function carica(slot, files) {
     S.errore[slot] = null;
-    try {
-      var pdf = /\.pdf$/i.test(f.name);
-      if (slot === "tx") {
-        if (pdf) throw new Error("Per le transazioni serve il CSV esportato da Koinly.");
-        var dati = D.leggiTransazioni(await f.text());
-        if (dati.errore) throw new Error(dati.errore);
-        S.tx = { nome: f.name, dati: dati };
-      } else {
-        var r = pdf ? L.leggiPdf(await testoPdf(f)) : L.leggiCsv(await f.text());
-        if (r.errore) throw new Error(r.errore);
-        if (!r.saldi.length) throw new Error("Nel file non ci sono saldi leggibili.");
-        // un report di fine anno N-1 vale come saldo di inizio anno N
-        if (slot === "inizio" && r.tipoSaldi !== "inizio") { r.annoInizio = r.anno + 1; r.nota = "Saldi al 31/12/" + r.anno + " usati come saldi al 1° gennaio " + (r.anno + 1) + "."; }
-        else if (slot === "inizio") r.annoInizio = r.anno;
-        if (slot === "fine" && r.tipoSaldi === "inizio") throw new Error("Questo è il report dei saldi di inizio anno: va nello spazio accanto.");
-        S[slot] = { nome: f.name, r: r };
-      }
-      scegliAnno();
-    } catch (e) { S.errore[slot] = e.message || String(e); }
-    ricalcola(); render();
+    var errori = [];
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      try {
+        var pdf = /\.pdf$/i.test(f.name);
+        if (slot === "tx") {
+          if (pdf) throw new Error("Per le transazioni serve il CSV esportato da Koinly.");
+          var dati = D.leggiTransazioni(await f.text());
+          if (dati.errore) throw new Error(dati.errore);
+          S.tx = { nome: f.name, dati: dati };
+        } else {
+          var r = pdf ? L.leggiPdf(await testoPdf(f)) : L.leggiCsv(await f.text());
+          if (r.errore) throw new Error(r.errore);
+          if (!r.saldi.length) throw new Error("Nel file non ci sono saldi leggibili.");
+          if (slot === "fine" && r.tipoSaldi === "inizio") throw new Error("è il report dei saldi di inizio anno: va nello spazio accanto.");
+          // un file per data: un nuovo report della stessa data sostituisce il precedente
+          var data = r.tipoSaldi === "inizio" ? r.anno + "-01-01" : r.anno + "-12-31";
+          S.saldiFile = S.saldiFile.filter(function (x) { return x.data !== data; });
+          S.saldiFile.push({ nome: f.name, r: r, data: data, slot: slot });
+          S.saldiFile.sort(function (x, y) { return x.data < y.data ? -1 : 1; });
+        }
+      } catch (e) { errori.push(f.name + ": " + (e.message || String(e))); }
+    }
+    if (errori.length) S.errore[slot] = errori.join(" · ");
+    scegliAnno(); ricalcola(); render();
+  }
+  /* saldi Koinly dell'anno: inizio = report al 1/1 dell'anno o di fine dell'anno precedente; fine = report al 31/12
+     (o, in mancanza, quello al 1/1 dell'anno dopo). Restituiscono { nome, r } con r.annoInizio come prima. */
+  function saldiInizioAnno(a) {
+    var x = S.saldiFile.filter(function (z) { return z.data === a + "-01-01"; })[0], nota = "";
+    if (!x) { x = S.saldiFile.filter(function (z) { return z.data === (a - 1) + "-12-31"; })[0]; nota = "Saldi al 31/12/" + (a - 1) + " usati come saldi al 1° gennaio " + a + "."; }
+    if (!x) return null;
+    return { nome: x.nome, r: Object.assign({}, x.r, { annoInizio: a, nota: nota || x.r.nota }) };
+  }
+  function saldiFineAnno(a) {
+    var x = S.saldiFile.filter(function (z) { return z.data === a + "-12-31"; })[0], nota = "";
+    if (!x) { x = S.saldiFile.filter(function (z) { return z.data === (a + 1) + "-01-01"; })[0]; nota = "Saldi al 1° gennaio " + (a + 1) + " usati come saldi al 31/12/" + a + "."; }
+    if (!x) return null;
+    return { nome: x.nome, r: Object.assign({}, x.r, { anno: a, nota: nota || x.r.nota }) };
+  }
+  /* anni calcolabili: l'ultimo importato (ultimo anno dei saldi o, senza saldi, l'ultimo anno chiuso delle transazioni) e fino a 5 anni prima */
+  function ultimoAnno() {
+    var fin = S.saldiFile.map(function (z) { return z.data.slice(5) === "12-31" ? +z.data.slice(0, 4) : +z.data.slice(0, 4) - 1; });
+    if (fin.length) return Math.max.apply(null, fin);
+    var a = anniTx(); return a.filter(function (x) { return x < new Date().getFullYear(); }).pop() || a.pop();
+  }
+  function anniIvaca() {
+    var u = ultimoAnno(), tx = anniTx(); if (!u) return [];
+    var out = []; for (var a = u - 5; a <= u; a++) if (!tx.length || tx[0] <= a) out.push(a);
+    return out;
   }
   function scegliAnno() {
-    if (S.fine) S.anno = S.fine.r.anno;
-    else if (S.inizio) S.anno = S.inizio.r.annoInizio;
-    else if (S.tx && !S.anno) { var a = anniTx(); S.anno = a.filter(function (x) { return x < new Date().getFullYear(); }).pop() || a.pop(); }
+    var anni = anniIvaca();
+    if (!S.anno || anni.indexOf(S.anno) < 0) S.anno = anni[anni.length - 1] || null;
   }
   function anniTx() {
     if (!S.tx) return [];
     var m = S.tx.dati.movimenti, set = {};
     m.forEach(function (t) { set[new Date(t.ts).getUTCFullYear()] = true; });
-    return Object.keys(set).map(Number).filter(function (a) { return a >= 2023; }).sort();
+    return Object.keys(set).map(Number).sort();
   }
 
   /* ---------- calcolo ---------- */
+  function calcolaAnno(a, opz) {
+    var o = opz || {}, ini = saldiInizioAnno(a), fin = saldiFineAnno(a);
+    if (!S.tx || !ini || !fin) return null;
+    var iniz = {}; ini.r.saldi.forEach(function (s) { if (s.tipo !== "fiat" && s.quantitaTesto != null) iniz[s.simbolo] = s.quantitaTesto; });
+    var c = D.calcola(S.tx.dati, a, { fuso: S.fuso, iniziali: iniz });
+    c.differenzeFine = D.confronta(c, fin.r.saldi);
+    var iv = I.calcola(c, { quota: Math.min(100, Math.max(0, +S.quota || 0)) / 100, saldiInizio: ini.r.saldi, saldiFine: fin.r.saldi, inclusi: o.inclusi || {}, valori: o.valori || {} });
+    return { calcolo: c, ivaca: iv };
+  }
   function ricalcola() {
-    calcolo = ivaca = null;
+    calcolo = ivaca = null; S.riepilogoAnni = null;
+    S.inizio = S.anno ? saldiInizioAnno(S.anno) : null; S.fine = S.anno ? saldiFineAnno(S.anno) : null;
     if (!S.tx || !S.inizio || !S.fine || !S.anno) return;
-    var iniz = null;
-    if (S.inizio && S.inizio.r.annoInizio === S.anno) { iniz = {}; S.inizio.r.saldi.forEach(function (s) { if (s.tipo !== "fiat" && s.quantitaTesto != null) iniz[s.simbolo] = s.quantitaTesto; }); }
-    calcolo = D.calcola(S.tx.dati, S.anno, { fuso: S.fuso, iniziali: iniz });
-    var saldiFine = S.fine && S.fine.r.anno === S.anno ? S.fine.r.saldi : null;
-    calcolo.differenzeFine = saldiFine ? D.confronta(calcolo, saldiFine) : null;
-    var saldiInizio = S.inizio && S.inizio.r.annoInizio === S.anno ? S.inizio.r.saldi : null;
-    ivaca = I.calcola(calcolo, { quota: Math.min(100, Math.max(0, +S.quota || 0)) / 100, saldiInizio: saldiInizio, saldiFine: saldiFine, inclusi: S.inclusi, valori: S.valori });
+    var x = calcolaAnno(S.anno, { inclusi: S.inclusi, valori: S.valori });
+    calcolo = x.calcolo; ivaca = x.ivaca;
+  }
+  /* riepilogo di tutti gli anni calcolabili (scelte di inclusione e valori a mano valgono solo per l'anno aperto) */
+  function riepilogoAnni() {
+    if (S.riepilogoAnni) return S.riepilogoAnni;
+    S.riepilogoAnni = anniIvaca().map(function (a) {
+      var x = a === S.anno && ivaca ? { calcolo: calcolo, ivaca: ivaca } : calcolaAnno(a);
+      var fin = saldiFineAnno(a), ini = saldiInizioAnno(a);
+      if (!x) return { anno: a, ini: ini, fin: fin };
+      var r = x.ivaca.righe.filter(function (z) { return z.incluso; });
+      return { anno: a, ini: ini, fin: fin, cripto: r.length, periodi: x.ivaca.totali.righiRw, valoreFinale: r.reduce(function (s, z) { return s + (z.valoreFinale || 0); }, 0), ivaca: x.ivaca.totali.ivaca, dovuta: x.ivaca.dovuta, differenze: (x.calcolo.differenzeFine || []).length };
+    });
+    return S.riepilogoAnni;
   }
 
   /* ---------- viste ---------- */
@@ -88,10 +134,13 @@
     if (err) stato = '<p class="stato" style="color:var(--hi)">' + esc(err) + "</p>";
     else if (x && id === "tx") stato = '<p class="stato"><b>' + esc(x.nome) + "</b><br>" + x.dati.movimenti.length.toLocaleString("it-IT") + " transazioni lette" +
       (x.dati.cancellate ? ", " + x.dati.cancellate + " cancellate escluse" : "") + "; date in " + (x.dati.fuso || "fuso non indicato") + "; numeri in formato " + (x.dati.numeri === "it" ? "italiano" : "inglese") + ".</p>";
-    else if (x) stato = '<p class="stato"><b>' + esc(x.nome) + "</b><br>" + x.r.saldi.length + " cripto, valore " + E(x.r.valoreCripto) + " — saldi " + (x.r.tipoSaldi === "inizio" ? "al 1/1/" + x.r.anno : "al 31/12/" + x.r.anno) +
-      (x.r.nota ? "<br>" + esc(x.r.nota) : "") + (x.r.avvisi.length ? '<br><span style="color:var(--mid)">' + x.r.avvisi.map(esc).join("<br>") + "</span>" : "") + "</p>";
+    else if (id !== "tx") {
+      var el = S.saldiFile.filter(function (z) { return id === "inizio" ? z.r.tipoSaldi === "inizio" || z.slot === "inizio" : z.r.tipoSaldi !== "inizio" && z.slot !== "inizio"; });
+      x = el.length ? el : null;
+      if (x) stato = '<p class="stato">' + el.map(function (z) { return "<b>" + esc(z.nome) + "</b> · saldi al " + it(z.data) + " · " + z.r.saldi.length + " cripto, " + E(z.r.valoreCripto) + (z.r.avvisi.length ? '<br><span style="color:var(--mid)">' + z.r.avvisi.map(esc).join("<br>") + "</span>" : "") + ' <button type="button" class="btnlink small" data-toglisaldi="' + z.data + '">togli</button>'; }).join("<br>") + "</p>";
+    }
     return '<div class="slot' + (err ? " err" : x ? " ok" : "") + '"><span class="req">' + (obbl ? "Obbligatorio" : "Facoltativo") + "</span><h3>" + titolo + '</h3><p class="small muted" style="margin:0">' + testo + "</p>" +
-      '<input type="file" accept="' + accetta + '" data-slot="' + id + '">' + stato + (x ? '<button type="button" class="btnlink small" data-togli="' + id + '">Togli il file</button>' : "") + "</div>";
+      '<input type="file" accept="' + accetta + '" data-slot="' + id + '"' + (id === "tx" ? "" : " multiple") + ">" + stato + (x && id === "tx" ? '<button type="button" class="btnlink small" data-togli="' + id + '">Togli il file</button>' : "") + "</div>";
   }
   /* Complete tax report Koinly: facoltativo, serve al confronto cessione per cessione (Costi di carico, Sanzioni, Quadri, memoria) */
   function slotKoinlyCes() {
@@ -110,8 +159,8 @@
       '<div class="banner"><strong>Riservatezza</strong><p>I file restano in questo browser: non vengono salvati né inviati in rete. Non sapete quali file caricare? <button type="button" class="btnlink" data-tab="6">Leggete la guida</button>.</p></div>';
     h += '<div class="panel"><h3 style="margin-top:0">Koinly</h3><div class="slots">' +
       slot("tx", "Transazioni", true, "CSV con tutte le transazioni di tutti gli anni, dal primo acquisto: «backup_transactions_koinly.csv» (Koinly › Transactions › esporta) oppure «transaction history». Serve a tutte le schede: periodi di detenzione, costi di carico, questionario.", ".csv,text/csv") +
-      slot("inizio", "Saldi a inizio anno", true, "«Beginning of year holdings» in CSV (Koinly › Tax reports, anno in esame), o il report di fine dell'anno precedente: quantità e valori al 1° gennaio. Serve ai giorni di detenzione e all'IVACA.", ".csv,.pdf") +
-      slot("fine", "Saldi a fine anno", true, "«End of year holdings» in CSV o «Complete tax report» in PDF dell'anno in esame: quantità e valori al 31/12, per il riscontro e il valore finale del quadro RW.", ".csv,.pdf") +
+      slot("inizio", "Saldi a inizio anno", true, "«Beginning of year holdings» in CSV (Koinly › Tax reports), uno per ogni anno da esaminare: si possono caricare più file insieme, fino a 5 anni prima dell'ultimo. Quantità e valori al 1° gennaio; il report di fine dell'anno precedente vale come saldo iniziale. Serve ai giorni di detenzione e all'IVACA.", ".csv,.pdf") +
+      slot("fine", "Saldi a fine anno", true, "«End of year holdings» in CSV o «Complete tax report» in PDF, uno per ogni anno da esaminare (anche più file insieme): quantità e valori al 31/12, per il riscontro e il valore finale del quadro RW.", ".csv,.pdf") +
       slotKoinlyCes() +
       riquadro("Report dei saldi per il questionario", "Facoltativo", "Report di inizio e fine anno o Complete tax report degli anni richiesti dall'Agenzia (più file insieme): danno i prezzi Koinly alle date chieste nel questionario.",
         '<input type="file" multiple accept=".csv,.pdf" data-qrep>', Q.nomiReport.length ? '<p class="stato">' + esc(Q.nomiReport.join("; ")) + "</p>" : "", false, Q.nomiReport.length) +
@@ -131,16 +180,29 @@
   }
   function viewIvaca() {
     var h = '<h2>Giorni di detenzione e IVACA</h2><p class="lead">Dalle transazioni Koinly si ricostruiscono, cripto per cripto e sul totale di tutti i wallet, i giorni di detenzione dell\'anno e i periodi a quantità costante; con il valore di fine anno si calcola l\'imposta sul valore delle cripto-attività (quadro RW, col. 33).</p>';
-    var manca = [!S.tx && "le transazioni", !S.inizio && "i saldi a inizio anno", !S.fine && "i saldi a fine anno"].filter(Boolean);
-    if (manca.length) return h + '<p class="muted" style="margin-top:14px">Per calcolare servono le transazioni e i saldi di inizio e fine anno: mancano ' + manca.join(", ").replace(/, ([^,]*)$/, " e $1") + '. Caricateli nella scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>.</p>';
-    var anni = anniTx(); if (S.anno && anni.indexOf(S.anno) < 0) anni.push(S.anno);
+    if (!S.tx || !S.saldiFile.length) return h + '<p class="muted" style="margin-top:14px">Per calcolare servono le transazioni e i saldi di inizio e fine anno di almeno un anno: ' + (!S.tx ? "mancano le transazioni" : "mancano i saldi") + '. Caricateli nella scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>.</p>';
+    var anni = anniIvaca();
     h += '<div class="panel" style="margin-top:14px"><div class="grid2">' +
-      '<label class="f"><span class="t">Anno</span><select data-k="anno">' + anni.map(function (a) { return "<option" + (a === S.anno ? " selected" : "") + ">" + a + "</option>"; }).join("") + "</select></label>" +
+      '<label class="f"><span class="t">Anno</span><select data-k="anno">' + anni.map(function (a) { var ok = saldiInizioAnno(a) && saldiFineAnno(a); return '<option value="' + a + '"' + (a === S.anno ? " selected" : "") + ">" + a + (ok ? "" : " · mancano i saldi") + (a <= 2022 ? " · solo monitoraggio" : "") + "</option>"; }).join("") + '</select><span class="small">Fino a 5 anni prima dell\'ultimo anno importato (' + anni[anni.length - 1] + ").</span></label>" +
       '<label class="f"><span class="t">Fuso orario delle date</span><select data-k="fuso"><option value="UTC"' + (S.fuso === "UTC" ? " selected" : "") + '>UTC (come nel file Koinly)</option><option value="Europe/Rome"' + (S.fuso === "Europe/Rome" ? " selected" : "") + ">Ora italiana</option></select><span class=\"small\">Il giorno di un movimento fatto di notte può cambiare.</span></label>" +
       '<label class="f"><span class="t">Quota di possesso <span class="muted small">(%)</span></span><input class="num" type="number" min="0" max="100" step="any" data-k="quota" value="' + esc(S.quota) + '"></label>' +
       "</div></div>";
-    if (!calcolo) return h;
+    h += riepilogoPluriennale();
+    if (!calcolo) {
+      var mi = [!S.inizio && "i saldi al 1° gennaio " + S.anno + " (o al 31/12/" + (S.anno - 1) + ")", !S.fine && "i saldi al 31/12/" + S.anno].filter(Boolean);
+      return h + '<p class="muted" style="margin-top:14px">Per il ' + S.anno + " mancano " + mi.join(" e ") + '. Caricateli nella scheda <button type="button" class="btnlink" data-tab="0">Caricamento file</button>.</p>';
+    }
+    if (ivaca.nonDovuta) h += '<div class="banner" style="margin-top:14px"><strong>Anno ' + S.anno + '</strong><p>' + esc(ivaca.nonDovuta) + "</p></div>";
     return h + risultati();
+  }
+  function riepilogoPluriennale() {
+    var R = riepilogoAnni(); if (R.length < 2) return "";
+    return '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Riepilogo degli anni</h3>' +
+      tab(["Anno", "Quadro RW", "Saldi 1/1", "Saldi 31/12", "n:Cripto", "n:Righi RW", "n:Valore finale", "n:IVACA", "Riscontro 31/12"], R.map(function (x) {
+        return ['<button type="button" class="btnlink" data-annoivaca="' + x.anno + '">' + x.anno + "</button>", x.anno >= 2023 ? "codice 21 · IVACA" : "codice 14 · solo monitoraggio", x.ini ? "✓" : '<span style="color:var(--hi)">manca</span>', x.fin ? "✓" : '<span style="color:var(--hi)">manca</span>',
+          x.cripto == null ? "–" : x.cripto, x.periodi == null ? "–" : x.periodi, x.valoreFinale == null ? "–" : E(x.valoreFinale, 0), x.ivaca == null ? "–" : x.dovuta ? E(x.ivaca) + (x.ivaca > 12 ? "" : ' <span class="small muted">(sotto 12 €)</span>') : '<span class="small muted">non dovuta</span>',
+          x.differenze == null ? "–" : x.differenze ? '<span style="color:var(--hi)">' + x.differenze + " differenze</span>" : "✓"];
+      }), 10) + '<p class="small">Fino al 31/12/2022 non era dovuta l\'IVACA né l\'IVAFE sulle cripto: il quadro RW (codice 14) serve solo al monitoraggio. Dal 2023 codice 21 e imposta dello 0,20%. Valore finale: somma dei valori finali di fine detenzione. Cliccate un anno per aprirlo.</p></div>';
   }
   function avvisi() {
     var a = [], c = calcolo;
@@ -343,8 +405,8 @@
   function anniCosti() { var a = {}; if (S.tx) S.tx.dati.movimenti.forEach(function (t) { a[new Date(t.ts).getUTCFullYear()] = true; }); return Object.keys(a).map(Number).sort(); }
   function confrontoCosti(r, anno) {
     // saldi Koinly per il confronto: dalla prima scheda o dai report caricati nel questionario (fine dell'anno precedente = inizio)
-    var ini = S.inizio && S.inizio.r.annoInizio === anno ? S.inizio.r.saldi : S.quest.saldiReport[anno + "-01-01"] || S.quest.saldiReport[(anno - 1) + "-12-31"] || null;
-    var fin = S.fine && S.fine.r.anno === anno ? S.fine.r.saldi : S.quest.saldiReport[anno + "-12-31"] || null;
+    var ini = saldiInizioAnno(anno) ? saldiInizioAnno(anno).r.saldi : S.quest.saldiReport[anno + "-01-01"] || S.quest.saldiReport[(anno - 1) + "-12-31"] || null;
+    var fin = saldiFineAnno(anno) ? saldiFineAnno(anno).r.saldi : S.quest.saldiReport[anno + "-12-31"] || null;
     if (ini || fin) C.confronta(r, ini, fin);
     return r;
   }
@@ -764,6 +826,8 @@
         '</td><td class="n">' + x.c6 + '</td><td class="n">' + E(x.c7, 0) + '</td><td class="n">' + E(x.c8, 0) + '</td><td class="n">' + x.c10 + '</td><td class="n">' + (x.c12 ? E(x.c12, 0) : "–") + '</td><td class="n">' + (x.c16 ? "X" : "") + '</td><td class="n">' + E(x.c33, x.c33 < 0.01 && x.c33 > 0 ? 4 : 2) + '</td><td class="n">' + E(x.c34, x.c34 < 0.01 && x.c34 > 0 ? 4 : 2) + "</td></tr>";
     }).join("");
     var w = q.rw8;
+    if (!w) return '<table class="det rw">' + testa + "<tbody>" + righe + "</tbody></table>" +
+      '<p class="small">Anno ' + q.anno + ": codice 14, cripto-attività indicate solo per il monitoraggio. Fino al 31/12/2022 l'imposta sulle cripto-attività non esisteva e sulle cripto non era dovuta l'IVAFE: niente colonne d'imposta e niente rigo RW8. Importi del modello in unità di euro.</p>";
     return '<table class="det rw">' + testa + "<tbody>" + righe + "</tbody></table>" +
       '<table class="det" style="margin-top:10px;width:auto"><thead><tr><th colspan="2">Rigo RW8 · imposta sulle cripto-attività (IC)</th></tr></thead><tbody>' +
       "<tr><td>Col. 1 · imposta dovuta (somma col. 34: " + E(w.esatta) + ", arrotondata all'euro)</td><td class=\"n\">" + E(w.imposta, 0) + "</td></tr><tr><td>Col. 2 · eccedenza dalla dichiarazione precedente</td><td class=\"n\">" + E(w.eccedenzaPrecedente) + "</td></tr>" +
@@ -780,7 +844,7 @@
       var q = MOD.quadroRW(ivaca, { titolo: S.modelli.titolo, sogliaPeriodi: S.modelli.sogliaPeriodi });
       h += '<div class="grid2" style="margin:10px 0">' +
         '<label class="f"><span class="t">Rigo unico per le cripto con più di … periodi</span><input class="num" type="number" min="0" step="1" data-mod="sogliaPeriodi" value="' + esc(S.modelli.sogliaPeriodi) + '"><span class="small">Valore iniziale del primo periodo, valore medio ponderato per i giorni, giorni complessivi: l\'imposta resta uguale alla somma dei periodi. 0 = mai.</span></label><label class="f"><span class="t">Col. 1 · titolo di possesso</span><select data-mod="titolo">' + [1, 2, 3, 4].map(function (k) { return '<option value="' + k + '"' + (S.modelli.titolo === k ? " selected" : "") + ">" + k + " · " + TITOLI[k] + "</option>"; }).join("") + "</select></label>" +
-        '<div class="f"><span class="t">Anno ' + q.anno + '</span><span class="small">' + q.righi.length + " righi in " + q.moduli + " moduli: un rigo per periodo di detenzione. Codice 21 (cripto-attività), criterio 1 (valore di mercato), quota " + String(ivaca.quota * 100).replace(".", ",") + "%.</span></div></div>" +
+        '<div class="f"><span class="t">Anno ' + q.anno + '</span><span class="small">' + q.righi.length + " righi in " + q.moduli + " moduli: un rigo per periodo di detenzione. Codice " + q.codice + (q.codice === 14 ? " (cripto-attività, fino al 2022: solo monitoraggio, senza imposta)" : " (cripto-attività)") + ", criterio 1 (valore di mercato), quota " + String(ivaca.quota * 100).replace(".", ",") + "%.</span></div></div>" +
         '<p class="small">La circolare 30/E chiede un rigo per ogni portafoglio: qui i periodi sono calcolati sul totale dei wallet di ciascuna cripto.</p>' +
         '<div class="scroll">' + tabellaRW(q) + "</div></div>";
     }
@@ -971,7 +1035,7 @@
     // foglio 1: un rigo per periodo di detenzione (righi RW), con l'imposta a formula
     var rw = [[{ v: "Quadro RW " + a + " · periodi di detenzione e IVACA", s: "titolo" }],
       ["Transazioni: " + S.tx.nome + (S.inizio ? " · Saldi iniziali: " + S.inizio.nome : "") + (S.fine ? " · Saldi finali: " + S.fine.nome : "") + " · date in " + calcolo.fuso],
-      ["Aliquota", { v: I.PARAMETRI.aliquota }, "Quota", { v: iv.quota, s: "inputPct" }, "Divisore", { v: I.PARAMETRI.divisore }], [],
+      ["Aliquota", { v: iv.parametri.aliquota }, "Quota", { v: iv.quota, s: "inputPct" }, "Divisore", { v: I.PARAMETRI.divisore }], [],
       ["Cripto", "Inizio detenzione", "Fine detenzione", "Giorni", "Quantità", "Valore iniziale €", "Valore finale €", "IVACA", "Fonte valore iniziale", "Fonte valore finale"].map(function (v) { return { v: v, s: "intestazione" }; })];
     var r0 = rw.length + 1;
     righe.forEach(function (r) { r.periodi.forEach(function (p) {
@@ -1044,7 +1108,7 @@
   document.getElementById("steps").addEventListener("click", function (e) { var b = e.target.closest("[data-tab]"); if (b) { S.tab = +b.getAttribute("data-tab"); render(); } });
   app.addEventListener("change", function (e) {
     var t = e.target;
-    if (t.matches("input[type=file][data-slot]") && t.files[0]) { carica(t.getAttribute("data-slot"), t.files[0]); return; }
+    if (t.matches("input[type=file][data-slot]") && t.files.length) { carica(t.getAttribute("data-slot"), Array.prototype.slice.call(t.files)); return; }
     if (t.matches("[data-incl]")) { S.inclusi[t.getAttribute("data-incl")] = t.checked; ricalcola(); render(); return; }
     if (t.matches("[data-val]")) { var k = t.getAttribute("data-val"); S.valori[k] = t.value === "" ? null : +t.value; ricalcola(); render(); return; }
     if (t.matches("[data-corr]")) { var rc = t.getAttribute("data-corr"); if (t.value) S.correzioni[rc] = { azione: t.value, importo: (S.correzioni[rc] || {}).importo }; else delete S.correzioni[rc]; render(); return; }
@@ -1078,6 +1142,8 @@
   app.addEventListener("click", function (e) {
     var t = e.target;
     if (t.matches("[data-apri]")) { var k = t.getAttribute("data-apri"); S.aperti[k] = !S.aperti[k]; render(); }
+    else if (t.matches("[data-toglisaldi]")) { var dz = t.getAttribute("data-toglisaldi"); S.saldiFile = S.saldiFile.filter(function (z) { return z.data !== dz; }); scegliAnno(); ricalcola(); render(); }
+    else if (t.matches("[data-annoivaca]")) { S.anno = +t.getAttribute("data-annoivaca"); S.inclusi = {}; S.valori = {}; ricalcola(); render(); }
     else if (t.matches("[data-togli]")) { var s = t.getAttribute("data-togli"); S[s] = null; S.errore[s] = null; if (s === "tx") S.anno = null; scegliAnno(); ricalcola(); render(); }
     else if (t.id === "excel") excel();
     else if (t.id === "stampa") stampa();

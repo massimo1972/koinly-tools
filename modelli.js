@@ -1,7 +1,7 @@
 /* Koinly Tools · Copyright (C) 2026 Massimo Esposito · licenza GNU AGPL-3.0 (file LICENSE) */
 /* Koinly Tools · compilazione dei quadri del modello Redditi PF (RW, RT) e del modello F24.
    Quadro RW (istruzioni Redditi PF, fascicolo 2): un rigo per ogni periodo di detenzione, cinque righi (RW1-RW5) per modulo.
-   Colonne usate per le cripto-attività: 1 titolo di possesso, 3 codice bene 21, 4 codice Stato (non obbligatorio per le cripto),
+   Colonne usate per le cripto-attività: 1 titolo di possesso, 3 codice bene (21 dal 2023, 14 fino al 2022), 4 codice Stato (non obbligatorio per le cripto),
    5 quota di possesso, 6 criterio del valore (1 = valore di mercato), 7 valore iniziale, 8 valore finale, 10 giorni (IC),
    12 credito per imposte patrimoniali estere, 16 solo monitoraggio, 33 imposta calcolata, 34 imposta dovuta; rigo RW8 liquidazione. */
 (function (root, factory) {
@@ -19,26 +19,29 @@
      così l'imposta del rigo è uguale alla somma dei periodi. */
   function quadroRW(iv, opz) {
     var o = opz || {}, quota = Math.round(iv.quota * 10000) / 100, righi = [], soglia = o.sogliaPeriodi == null ? 20 : o.sogliaPeriodi;
+    // fino al 2022 codice 14 e solo monitoraggio (niente IVACA né IVAFE); dal 2023 codice 21 con l'imposta in col. 33-34
+    var dovuta = iv.anno >= 2023, codice = dovuta ? 21 : 14;
     iv.righe.filter(function (r) { return r.incluso; }).forEach(function (r) {
       if (soglia > 0 && r.periodi.length > soglia && r.valoreMedio != null) {
         var g = r.periodi.reduce(function (a, p) { return a + p.giorni; }, 0), ic = r.ivaca || 0;
         righi.push({ cripto: r.nome, dal: r.periodi[0].dal, al: r.periodi[r.periodi.length - 1].al, quantita: null, aggregato: r.periodi.length, valoreFinale: r.valoreFinale,
-          c1: o.titolo || 1, c3: 21, c4: "", c5: quota, c6: 1, c7: r0(r.periodi[0].valoreIniziale), c8: r0(r.valoreMedio), c10: g, c12: 0, c16: false, c33: ic, c34: ic });
+          c1: o.titolo || 1, c3: codice, c4: "", c5: quota, c6: 1, c7: r0(r.periodi[0].valoreIniziale), c8: r0(r.valoreMedio), c10: g, c12: 0, c16: false, c33: dovuta ? ic : null, c34: dovuta ? ic : null });
         return;
       }
       r.periodi.forEach(function (p) {
         var ic = p.ivaca == null ? 0 : p.ivaca;
         righi.push({ cripto: r.nome, dal: p.dal, al: p.al, quantita: p.quantita,
-          c1: o.titolo || 1, c3: 21, c4: "", c5: quota, c6: 1, c7: r0(p.valoreIniziale), c8: r0(p.valore), c10: p.giorni, c12: 0, c16: false, c33: ic, c34: ic });
+          c1: o.titolo || 1, c3: codice, c4: "", c5: quota, c6: 1, c7: r0(p.valoreIniziale), c8: r0(p.valore), c10: p.giorni, c12: 0, c16: false, c33: dovuta ? ic : null, c34: dovuta ? ic : null });
       });
     });
     righi.forEach(function (x, i) { x.modulo = Math.floor(i / 5) + 1; x.rigo = "RW" + (i % 5 + 1); });
+    if (!dovuta) return { anno: iv.anno, righi: righi, moduli: righi.length ? righi[righi.length - 1].modulo : 0, rw8: null, codice: codice };
     var totale = righi.reduce(function (a, x) { return a + x.c34; }, 0);
     /* RW8: imposta complessiva sulla somma esatta dei righi (l'imposta di un rigo di un giorno vale frazioni di centesimo),
        arrotondata all'euro solo nel totale; si versa solo se supera 12 euro */
     var rw8 = { esatta: totale, imposta: r0(totale), eccedenzaPrecedente: 0, eccedenzaCompensata: 0, acconti: 0 };
     rw8.debito = rw8.imposta > 12 ? r0(rw8.imposta - rw8.acconti) : 0;
-    return { anno: iv.anno, righi: righi, moduli: righi.length ? righi[righi.length - 1].modulo : 0, rw8: rw8 };
+    return { anno: iv.anno, righi: righi, moduli: righi.length ? righi[righi.length - 1].modulo : 0, rw8: rw8, codice: codice };
   }
 
   /* Quadro RT, sezione cripto-attività, secondo il modello dell'anno (istruzioni Redditi PF, fascicolo 2):

@@ -42,4 +42,15 @@ t("Quadri RT al 26% e RM inseriti a mano: righi per anno, minusvalenze pregresse
   assert.equal(c.rigo, "RM12"); assert.equal(c.righi.length, 1); assert.equal(c.imposta, 26);
   assert.equal(M.quadroRM(2025, [{ lettera: "H", lordo: 50 }]).rigo, "RM31");
 });
+t("IVACA e quadro RW: fino al 2022 codice 14 senza imposta, dal 2023 codice 21 con lo 0,20%", () => {
+  const I = require("../ivaca.js");
+  const calc = (anno) => ({ anno, righe: [{ chiave: "BTC;1", nome: "BTC", simbolo: "BTC", spam: false, giorni: 365, iniziale: "1", finale: "1", note: [],
+    periodi: [{ dal: anno + "-01-01", al: anno + "-12-31", giorni: 365, quantita: "1", quantitaN: 1, valoreIniziale: 20000, valore: 30000 }] }] });
+  const v22 = I.calcola(calc(2022)), v23 = I.calcola(calc(2023));
+  assert.equal(v22.dovuta, false); assert.equal(v22.totali.ivaca, 0); assert.ok(/31\/12\/2022/.test(v22.nonDovuta));
+  assert.equal(v23.dovuta, true); assert.ok(Math.abs(v23.totali.ivaca - 60) < 0.01);
+  const q22 = M.quadroRW(v22, {}), q23 = M.quadroRW(v23, {});
+  assert.equal(q22.righi[0].c3, 14); assert.equal(q22.righi[0].c34, null); assert.equal(q22.rw8, null); assert.equal(q22.righi[0].c8, 30000);
+  assert.equal(q23.righi[0].c3, 21); assert.equal(q23.rw8.imposta, 60);
+});
 console.log("\n" + n + " prove superate");

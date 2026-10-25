@@ -2,14 +2,16 @@
 /* Koinly Tools · imposta sul valore delle cripto-attività (IVACA, quadro RW col. 33).
    Istruzioni Redditi PF: imposta = valore finale × 0,20% × quota × giorni / 365 (art. 19 cc. 18-21 DL 201/2011).
    Valore iniziale e finale sono quelli di inizio e fine detenzione, non del 1/1 e del 31/12: ogni periodo a quantità
-   costante è un rigo RW con i suoi giorni e il suo valore finale. Il valore medio ponderato per i giorni è solo un confronto. */
+   costante è un rigo RW con i suoi giorni e il suo valore finale. Il valore medio ponderato per i giorni è solo un confronto.
+   L'imposta è dovuta dall'anno 2023 (L. 197/2022): fino al 31/12/2022 le cripto vanno nel quadro RW solo per il monitoraggio
+   (codice 14), senza IVACA e senza IVAFE; i periodi e i valori si calcolano comunque. */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) module.exports = factory();
   else root.KoinlyIvaca = factory();
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  var PARAMETRI = { aliquota: 0.002, divisore: 365, sogliaVersamento: 12 };
+  var PARAMETRI = { aliquota: 0.002, divisore: 365, sogliaVersamento: 12 }, ANNO_INIZIO = 2023;
 
   /* prezzo medio per simbolo da un report Koinly di saldi (valore / quantità) */
   function prezziReport(saldi) {
@@ -23,6 +25,7 @@
      opz: { quota (0-1), saldiInizio, saldiFine (report Koinly), inclusi: { chiave: bool }, valori: { chiave: valore finale a mano } } */
   function calcola(calc, opz) {
     var o = opz || {}, P = Object.assign({}, PARAMETRI, o.parametri || {});
+    var dovuta = calc.anno >= ANNO_INIZIO; if (!dovuta) P.aliquota = 0;
     var quota = o.quota == null ? 1 : o.quota, k = P.aliquota * quota / P.divisore;
     var inizio = calc.anno + "-01-01", fine = calc.anno + "-12-31";
     var pxIni = prezziReport(o.saldiInizio), pxFin = prezziReport(o.saldiFine);
@@ -58,12 +61,13 @@
     });
     var tot = function (key) { return righe.reduce(function (a, r) { return a + (r.incluso && r[key] != null ? r[key] : 0); }, 0); };
     var totale = tot("ivaca");
-    return { anno: calc.anno, quota: quota, parametri: P, righe: righe,
+    return { anno: calc.anno, quota: quota, parametri: P, righe: righe, dovuta: dovuta, codiceRW: dovuta ? 21 : 14,
+      nonDovuta: dovuta ? null : "Fino al 31/12/2022 l'imposta sulle cripto-attività non esisteva e sulle cripto non era dovuta l'IVAFE: nel quadro RW (codice 14) le cripto si indicano solo per il monitoraggio, con valori e giorni ma senza imposta.",
       totali: { ivaca: totale, ivacaMedia: tot("ivacaMedia"), righiRw: righe.reduce(function (a, r) { return a + (r.incluso ? r.periodi.length : 0); }, 0) },
       daVersare: totale > P.sogliaVersamento, mancanti: righe.filter(function (r) { return r.incluso && r.ivaca == null; }).length };
   }
 
   function giornoDopo(g) { return new Date(Date.parse(g + "T00:00:00Z") + 86400000).toISOString().slice(0, 10); }
 
-  return { calcola: calcola, PARAMETRI: PARAMETRI };
+  return { calcola: calcola, PARAMETRI: PARAMETRI, ANNO_INIZIO: ANNO_INIZIO };
 });
