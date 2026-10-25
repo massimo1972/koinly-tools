@@ -71,7 +71,7 @@
     '<xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/>' +
     "</cellXfs></styleSheet>";
 
-  /* fogli: [{ nome, colonne: [larghezze], righe: [[cella, ...]], unisci: ["A10:E10"], altezze: {riga: pt}, orizzontale: A4 orizzontale, una pagina in larghezza }]
+  /* fogli: [{ nome, colonne: [larghezze], righe: [[cella, ...]], unisci: ["A10:E10"], altezze: {riga: pt}, orizzontale: A4 verticale (scelta dello studio) adattato in larghezza a una pagina in larghezza }]
      cella: null | stringa | numero | { v, f, s } (f = formula senza "=", s = nome dello stile) */
   function crea(fogli) {
     var files = [];
@@ -102,9 +102,9 @@
       var cols = f.colonne ? "<cols>" + f.colonne.map(function (w, k) { return '<col min="' + (k + 1) + '" max="' + (k + 1) + '" width="' + w + '" customWidth="1"/>'; }).join("") + "</cols>" : "";
       var merge = f.unisci && f.unisci.length ? '<mergeCells count="' + f.unisci.length + '">' + f.unisci.map(function (m) { return '<mergeCell ref="' + m + '"/>'; }).join("") + "</mergeCells>" : "";
       files.push({ nome: "xl/worksheets/sheet" + (i + 1) + ".xml", testo: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + (f.orizzontale ? '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' : "") + cols + "<sheetData>" + righe + "</sheetData>" + merge +
-        (f.orizzontale ? '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>' : "") + "</worksheet>" });
+        (f.orizzontale ? '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/>' : "") + "</worksheet>" });
     });
     return zip(files);
   }
-  return { crea: crea, colonna: colonna };
+  return { crea: crea, colonna: colonna, zip: zip };
 });
