@@ -47,7 +47,10 @@
       // così si escludono i contratti (router, bridge) che compaiono come origine o destinazione
       var ab = /(0x[0-9a-f]{3,6})\.\.\.([0-9a-f]{3,6})/i.exec(w.nome), tutti = Object.keys(w.indirizzi);
       w.indirizzi = ab ? tutti.filter(function (x) { return x.indexOf(ab[1].toLowerCase()) === 0 && x.slice(-ab[2].length) === ab[2].toLowerCase(); }) : tutti.filter(function (x) { return w.indirizzi[x] > 1; });
-      if (/[xyz]pub/i.test(w.riferimento)) w.chiavePubblica = w.riferimento;
+      // nel nome Koinly la chiave pubblica e l'indirizzo sono spesso abbreviati (xpub6CP5...5VNx, 0x2464...0bD0): non sono un dato completo
+      var abbreviato = /\.\.\.|…/.test(w.riferimento);
+      if (/[xyz]pub/i.test(w.riferimento) && !abbreviato) w.chiavePubblica = w.riferimento;
+      if (abbreviato) w.abbreviato = w.riferimento;
     });
 
     /* --- saldi per wallet e cripto alle date (1/1 = inizio giornata, 31/12 = fine giornata) --- */
@@ -174,7 +177,10 @@
        wallet registrati in Koinly (piattaforme e wallet non custodial) e indirizzi esterni dei movimenti non abbinati. */
     var propri = {}; Object.keys(X.wallet).forEach(function (k) { X.wallet[k].indirizzi.forEach(function (i) { propri[i] = k; }); });
     var chiavi = elencoWallet.map(function (w) {
+      // da completare: wallet non custodial senza indirizzo né chiave pubblica completi nel file, o con il solo riferimento abbreviato
+      var completo = !!w.chiavePubblica || (w.indirizzi.length > 0 && !(w.abbreviato && /[xyz]pub/i.test(w.abbreviato)));
       return { id: "w:" + w.nome, genere: "wallet Koinly", etichetta: w.nome, tipo: w.tipo, chiavePubblica: w.chiavePubblica || "", indirizzi: w.indirizzi, primo: w.primo, ultimo: w.ultimo, n: w.n,
+        abbreviato: w.abbreviato || "", daCompletare: w.tipo !== "custodial (exchange)" && !completo,
         proposta: w.tipo === "custodial (exchange)" ? "piattaforma" : "da chiarire" };
     });
     var esterni = {};

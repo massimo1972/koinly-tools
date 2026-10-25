@@ -173,7 +173,7 @@
         '<input type="file" multiple accept=".pdf" data-banca>', B.errore ? '<p class="stato" style="color:var(--hi)">' + esc(B.errore) + "</p>" : B.file ? '<p class="stato">' + B.file + " file letti: " + B.movimenti.length + " movimenti con exchange tenuti, " + B.scartate + ' righe scartate</p><button type="button" class="btnlink small" id="svuotaBanca">Togli gli estratti conto</button>' : "", B.errore, B.file) +
       "</div></div>";
     h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Lavoro dello studio</h3><div class="slots">' +
-      riquadro("File di lavoro", "Facoltativo", "Il file JSON salvato da Koinly Tools con le correzioni dei costi, le attribuzioni dei wallet, i dati del cliente e gli altri redditi inseriti nei quadri. Salvatelo prima di chiudere la pagina e ricaricatelo qui per riprendere il lavoro.",
+      riquadro("File di lavoro", "Facoltativo", "Il file JSON salvato da Koinly Tools con le correzioni dei costi, le attribuzioni dei wallet con i loro indirizzi e chiavi pubbliche, i dati del cliente e gli altri redditi inseriti nei quadri. Salvatelo prima di chiudere la pagina e ricaricatelo qui per riprendere il lavoro.",
         '<input type="file" accept=".json" data-lavoro><div class="toolbar" style="margin-top:8px"><button type="button" class="btn ghost" id="salvaLavoro">Salva il lavoro in un file</button></div>', '<p class="stato">' + (S.lavoroCaricato ? "Caricato: " + esc(S.lavoroCaricato) : Object.keys(S.correzioni).length + " correzioni in questa sessione") + "</p>", false, S.lavoroCaricato) +
       "</div></div>";
     return h;
@@ -394,11 +394,11 @@
   };
   function scaricaFile(nome, blob) { var l = document.createElement("a"); l.href = URL.createObjectURL(blob); l.download = nome; document.body.appendChild(l); l.click(); setTimeout(function () { URL.revokeObjectURL(l.href); l.remove(); }, 1000); }
   function salvaLavoro() {
-    var dati = { programma: "Koinly Tools", versione: 1, salvato: new Date().toISOString(), transazioni: S.tx ? S.tx.nome : "", correzioni: S.correzioni, attribuzioni: S.quest.flag, cliente: S.quest.cliente, altriRedditi: S.altri };
+    var dati = { programma: "Koinly Tools", versione: 1, salvato: new Date().toISOString(), transazioni: S.tx ? S.tx.nome : "", correzioni: S.correzioni, attribuzioni: S.quest.flag, chiaviWallet: S.quest.chiavi, cliente: S.quest.cliente, altriRedditi: S.altri };
     scaricaFile("koinly-tools-lavoro.json", new Blob([JSON.stringify(dati, null, 1)], { type: "application/json" }));
   }
   async function caricaLavoro(f) {
-    try { var j = JSON.parse(await f.text()); S.correzioni = j.correzioni || {}; S.quest.flag = j.attribuzioni || {}; S.quest.cliente = Object.assign(S.quest.cliente, j.cliente || {}); if (j.altriRedditi) { S.altri = j.altriRedditi; altroId = S.altri.reduce(function (m, x) { return Math.max(m, x.id + 1); }, 1); } S.lavoroCaricato = f.name + (j.transazioni ? " (transazioni: " + j.transazioni + ")" : ""); }
+    try { var j = JSON.parse(await f.text()); S.correzioni = j.correzioni || {}; S.quest.flag = j.attribuzioni || {}; S.quest.chiavi = j.chiaviWallet || {}; S.quest.cliente = Object.assign(S.quest.cliente, j.cliente || {}); if (j.altriRedditi) { S.altri = j.altriRedditi; altroId = S.altri.reduce(function (m, x) { return Math.max(m, x.id + 1); }, 1); } S.lavoroCaricato = f.name + (j.transazioni ? " (transazioni: " + j.transazioni + ")" : ""); }
     catch (e) { S.lavoroCaricato = "File non valido: " + e.message; }
     render();
   }
@@ -588,7 +588,7 @@
   }
 
   /* ---------- questionario dell'Agenzia delle Entrate e dichiarazione sui wallet ---------- */
-  S.quest = { anni: [], saldiReport: {}, reportCompleti: {}, nomiReport: [], flag: {}, cliente: { nome: "", cf: "", nascita: "", residenza: "" } };
+  S.quest = { anni: [], saldiReport: {}, reportCompleti: {}, nomiReport: [], flag: {}, chiavi: {}, cliente: { nome: "", cf: "", nascita: "", residenza: "" } };
   var DOMANDE = [
     "Modalità di acquisto delle cripto-attività, con dettaglio degli intermediari utilizzati",
     "Copia della movimentazione bancaria dei conti utilizzati",
@@ -621,6 +621,18 @@
     cacheQ = { k: k, q: q }; return q;
   }
   function attribuzione(c) { return S.quest.flag[c.id] || c.proposta; }
+  /* indirizzi e chiavi pubbliche di un wallet: quelli inseriti dallo studio, poi quelli completi letti dal file Koinly */
+  function riferimenti(c) {
+    var mano = String(S.quest.chiavi[c.id] || "").split(/[\s,;]+/).filter(Boolean);
+    return mano.concat([c.chiavePubblica].concat(c.indirizzi).filter(function (x) { return x && mano.indexOf(x) < 0; }));
+  }
+  function daCompletare(c) { return c.daCompletare && !String(S.quest.chiavi[c.id] || "").trim(); }
+  // testo per stampe, Excel e dichiarazione sostitutiva
+  function testoRiferimenti(c) {
+    var r = riferimenti(c);
+    if (daCompletare(c)) return (r.length ? r.join(" · ") + " · " : "") + "DA COMPLETARE" + (c.abbreviato ? " (Koinly riporta solo l'abbreviazione " + c.abbreviato + ")" : " (indirizzo o chiave pubblica non presenti nel file Koinly)");
+    return r.join(" · ");
+  }
   function tab(intest, righe, max) {
     var rr = max ? righe.slice(0, max) : righe;
     return '<div class="scroll"><table class="det"><thead><tr>' + intest.map(function (x) { return "<th" + (/^n:/.test(x) ? ' class="n"' : "") + ">" + esc(x.replace(/^n:/, "")) + "</th>"; }).join("") + "</tr></thead><tbody>" +
@@ -643,9 +655,12 @@
     // 3: wallet, chiavi, attribuzione
     var ch = q.d3.chiavi;
     dom(2, "<p>Wallet registrati in Koinly e indirizzi esterni dei movimenti non abbinati. Per ciascuno il cliente indica se è suo: la dichiarazione sostitutiva elenca solo quelli marcati «mio».</p>" +
-      (perStampa ? tab(["Wallet / indirizzo", "Tipologia", "Chiave pubblica / indirizzi", "Periodo di utilizzo", "Attribuzione"], ch.map(function (c) { return [esc(c.etichetta), esc(c.tipo) + (c.cripto ? "<br>" + esc(c.cripto) : ""), '<span style="word-break:break-all">' + esc([c.chiavePubblica].concat(c.indirizzi).filter(Boolean).join(" · ")) + "</span>", it(c.primo) + " – " + it(c.ultimo), esc(attribuzione(c))]; }))
+      (ch.some(daCompletare) ? '<p class="small" style="color:var(--hi)">' + ch.filter(daCompletare).length + " wallet senza indirizzo o chiave pubblica completi: Koinly li riporta solo abbreviati nel nome (tipico dei wallet Bitcoin con xpub o zpub) o non li riporta. Copiateli dalle impostazioni del wallet in Koinly o chiedeteli al cliente, e inseriteli qui (più indirizzi separati da spazio o virgola).</p>" : "") +
+      (perStampa ? tab(["Wallet / indirizzo", "Tipologia", "Chiave pubblica / indirizzi", "Periodo di utilizzo", "Attribuzione"], ch.map(function (c) { return [esc(c.etichetta), esc(c.tipo) + (c.cripto ? "<br>" + esc(c.cripto) : ""), '<span style="word-break:break-all">' + esc(testoRiferimenti(c)) + "</span>", it(c.primo) + " – " + it(c.ultimo), esc(attribuzione(c))]; }))
         : '<div class="scroll"><table class="det"><thead><tr><th>Wallet / indirizzo</th><th>Tipologia</th><th>Chiave pubblica / indirizzi</th><th>Periodo</th><th class="n">Mov.</th><th>Attribuzione</th></tr></thead><tbody>' +
-          ch.map(function (c) { var at = attribuzione(c); return "<tr><td>" + esc(c.etichetta) + "</td><td>" + esc(c.tipo) + (c.cripto ? '<br><span class="u">' + esc(c.cripto) + " · " + E(c.valore) + "</span>" : "") + '</td><td class="small" style="word-break:break-all;max-width:260px">' + esc([c.chiavePubblica].concat(c.indirizzi).filter(Boolean).join(" · ")) + "</td><td>" + it(c.primo) + " – " + it(c.ultimo) + '</td><td class="n">' + c.n + '</td><td><select data-flag="' + esc(c.id) + '">' + ["mio", "non mio", "piattaforma", "da chiarire"].map(function (o) { return "<option" + (at === o ? " selected" : "") + ">" + o + "</option>"; }).join("") + "</select></td></tr>"; }).join("") + "</tbody></table></div>") +
+          ch.map(function (c) { var at = attribuzione(c), auto = [c.chiavePubblica].concat(c.indirizzi).filter(Boolean); return "<tr><td>" + esc(c.etichetta) + "</td><td>" + esc(c.tipo) + (c.cripto ? '<br><span class="u">' + esc(c.cripto) + " · " + E(c.valore) + "</span>" : "") + '</td><td class="small" style="word-break:break-all;max-width:300px">' + (auto.length ? esc(auto.join(" · ")) + "<br>" : "") +
+            (c.genere === "wallet Koinly" && c.tipo !== "custodial (exchange)" ? '<input type="text" data-chiave="' + esc(c.id) + '" value="' + esc(S.quest.chiavi[c.id] || "") + '" placeholder="' + (c.abbreviato ? "completo di " + esc(c.abbreviato) : "indirizzo o chiave pubblica completa") + '" style="width:100%;min-width:220px">' +
+              (daCompletare(c) ? '<br><span style="color:var(--hi)">Da completare' + (c.abbreviato ? ": Koinly riporta solo l'abbreviazione " + esc(c.abbreviato) : ": nel file Koinly non c'è l'indirizzo") + "</span>" : "") : "") + "</td><td>" + it(c.primo) + " – " + it(c.ultimo) + '</td><td class="n">' + c.n + '</td><td><select data-flag="' + esc(c.id) + '">' + ["mio", "non mio", "piattaforma", "da chiarire"].map(function (o) { return "<option" + (at === o ? " selected" : "") + ">" + o + "</option>"; }).join("") + "</select></td></tr>"; }).join("") + "</tbody></table></div>") +
       q.d3.alleDate.map(function (x) { return "<h4>Saldi per wallet al " + x.data + " · totale " + E(x.totale, 0) + "</h4>" + tab(["Wallet", "Tipologia", "Cripto", "n:Quantità", "n:Valore", "Fonte del prezzo"], x.righe.map(function (r) { return [esc(r.wallet), esc(r.tipo), esc(r.cripto), Q(r.quantita), r.valore == null ? "n.d." : E(r.valore), esc(r.fontePrezzo)]; }), M); }).join(""));
     // 4
     dom(3, "<p>" + q.d4.transazioni.length + " transazioni nel periodo (esclusi i token sospetti), con tipologia Koinly e transaction ID.</p>" +
@@ -725,7 +740,7 @@
       '<p style="text-align:center"><b>DICHIARA</b></p>' +
       "<p>che i wallet, le chiavi pubbliche e gli indirizzi di seguito elencati, non appartenenti a piattaforme di scambio o di custodia, sono di sua proprietà e nella sua esclusiva disponibilità e che le relative chiavi private sono custodite esclusivamente dal/dalla sottoscritto/a:</p>" +
       '<table class="det"><thead><tr><th>n.</th><th>Wallet</th><th>Chiave pubblica / indirizzi</th><th>Periodo di utilizzo</th></tr></thead><tbody>' +
-      miei.map(function (x, i) { return "<tr><td>" + (i + 1) + "</td><td>" + esc(x.etichetta) + '</td><td style="word-break:break-all">' + esc([x.chiavePubblica].concat(x.indirizzi).filter(Boolean).join(" · ") || "—") + "</td><td>" + it(x.primo) + " – " + it(x.ultimo) + "</td></tr>"; }).join("") + "</tbody></table>" +
+      miei.map(function (x, i) { return "<tr><td>" + (i + 1) + "</td><td>" + esc(x.etichetta) + '</td><td style="word-break:break-all">' + esc(testoRiferimenti(x) || "—") + "</td><td>" + it(x.primo) + " – " + it(x.ultimo) + "</td></tr>"; }).join("") + "</tbody></table>" +
       "<p>Dichiara inoltre di essere informato/a, ai sensi del Regolamento (UE) 2016/679, che i dati personali raccolti saranno trattati anche con strumenti informatici esclusivamente nell'ambito del procedimento per il quale la presente dichiarazione viene resa.</p>" +
       '<p style="margin-top:28px">Luogo e data ______________________, ' + esc(oggi) + '</p><p style="margin-top:28px;text-align:right">Il/La dichiarante<br><br>______________________________</p>' +
       '<p class="nota" style="margin-top:28px">Allegare copia fotostatica di un documento di identità in corso di validità del dichiarante (art. 38 D.P.R. 445/2000).</p></div>';
@@ -738,7 +753,7 @@
       foglio("1 Acquisti", "1. " + DOMANDE[0], ["Anno", "Intermediario", "Tipologia", "Operazioni", "Importo", "Valute", "Cripto"], q.d1.acquisti.map(function (x) { return [x.anno, x.intermediario, x.tipo, x.n, eu(x.importo), x.valute, x.cripto]; }), [8, 30, 20, 10, 14, 10, 30]),
       foglio("2 Exchange in euro", "2. " + DOMANDE[1] + " · movimenti in valuta sugli exchange (Koinly)", ["Data", "Intermediario", "Movimento", "Importo", "Valuta"], q.d2.movimenti.map(function (b) { return [it(b.data), b.intermediario || "", b.verso, eu(b.importo), b.valuta]; }), [12, 26, 12, 14, 8]),
       foglio("2 Banca anonimizzata", "2. Estratti conto: solo movimenti con exchange, anonimizzati", ["Data", "Movimento", "Importo", "Riscontro Koinly"], bancaRiscontrata().filter(function (b) { return q.anni.indexOf(+b.data.slice(0, 4)) >= 0; }).map(function (b) { return [it(b.data), b.descrizione, eu(b.segno * b.importo), b.riscontro ? b.riscontro.verso + " " + it(b.riscontro.data) + " su " + b.riscontro.intermediario : "non trovato in Koinly"]; }), [12, 36, 14, 50]),
-      foglio("3 Wallet e chiavi", "3. " + DOMANDE[2], ["Wallet / indirizzo", "Genere", "Tipologia", "Chiave pubblica", "Indirizzi", "Primo utilizzo", "Ultimo utilizzo", "Movimenti", "Attribuzione"], q.d3.chiavi.map(function (c) { return [c.etichetta, c.genere, c.tipo, c.chiavePubblica, c.indirizzi.join(" "), it(c.primo), it(c.ultimo), c.n, attribuzione(c)]; }), [40, 16, 22, 30, 50, 12, 12, 10, 14]),
+      foglio("3 Wallet e chiavi", "3. " + DOMANDE[2], ["Wallet / indirizzo", "Genere", "Tipologia", "Indirizzi e chiavi pubbliche", "Da completare", "Primo utilizzo", "Ultimo utilizzo", "Movimenti", "Attribuzione"], q.d3.chiavi.map(function (c) { return [c.etichetta, c.genere, c.tipo, riferimenti(c).join(" "), daCompletare(c) ? "sì" + (c.abbreviato ? " (abbreviato " + c.abbreviato + ")" : "") : "", it(c.primo), it(c.ultimo), c.n, attribuzione(c)]; }), [40, 16, 22, 30, 50, 12, 12, 10, 14]),
       foglio("3-5 Saldi wallet", "3 e 5. Saldi per wallet alle date", ["Data", "Wallet", "Tipologia", "Cripto", "Quantità", "Valore", "Fonte del prezzo"], [].concat.apply([], q.d3.alleDate.map(function (x) { return x.righe.map(function (r) { return [x.data, r.wallet, r.tipo, r.cripto, +r.quantita, r.valore == null ? "n.d." : eu(r.valore), r.fontePrezzo]; }); })), [12, 40, 20, 10, 20, 14, 16]),
       foglio("4 Transazioni", "4. " + DOMANDE[3], ["Data", "Ora UTC", "Tipo", "Etichetta", "Wallet di uscita", "Quantità", "Cripto", "Wallet di entrata", "Quantità", "Cripto", "Commissione", "Valore €", "TxHash", "Indirizzo origine", "Indirizzo destinazione"], q.d4.transazioni.map(function (t) { return [it(t.data), t.ora, t.tipo, t.tag, t.walletDa || "", t.qDa ? +t.qDa : null, t.valDa, t.walletA || "", t.qA ? +t.qA : null, t.valA, t.fee, eu(t.valore), t.txHash, t.txSrc, t.txDest]; }), [12, 10, 12, 14, 30, 16, 8, 30, 16, 8, 16, 12, 40, 40, 40]),
       foglio("6 Cessioni e proventi", "6. " + DOMANDE[5], ["Anno", "Tipo", "Numero", "Corrispettivi", "Costi LIFO", "Risultato"], [].concat.apply([], q.anni.map(function (a) { return (q.d6.cessioni[a] || []).map(function (c) { return [a, c.tipo, c.n, eu(c.corrispettivi), eu(c.costi), eu(c.risultato)]; }).concat((q.d6.proventi[a] || []).map(function (p) { return [a, "provento: " + p.voce, p.n, eu(p.valore), null, null]; })); })), [8, 36, 10, 16, 16, 16]),
@@ -1124,6 +1139,7 @@
     if (t.matches("[data-et]")) { S.etoroAnno = +t.value; render(); return; }
     if (t.matches("[data-qanno]")) { var qa = +t.getAttribute("data-qanno"); S.quest.anni = S.quest.anni.filter(function (x) { return x !== qa; }); if (t.checked) S.quest.anni.push(qa); S.quest.anni.sort(); render(); return; }
     if (t.matches("[data-qrep]") && t.files.length) { caricaReportQuest(t.files); return; }
+    if (t.matches("[data-chiave]")) { S.quest.chiavi[t.getAttribute("data-chiave")] = t.value.trim(); render(); return; }
     if (t.matches("[data-flag]")) { S.quest.flag[t.getAttribute("data-flag")] = t.value; render(); return; }
     if (t.matches("[data-cliente]")) { S.quest.cliente[t.getAttribute("data-cliente")] = t.value.trim(); return; }
     if (t.matches("[data-modt]")) { S.modelli[t.getAttribute("data-modt")] = t.value.trim(); return; }
