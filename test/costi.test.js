@@ -22,8 +22,9 @@ const TX = [H,
 const dati = D.leggiTransazioni(TX);
 // le correzioni si riferiscono al numero di riga del file (riga 1 = intestazione): l'operazione con ID n è alla riga n + 1
 const CORR = { 7: { azione: "interno" }, 8: { azione: "interno" }, 9: { azione: "costo", importo: 18000 }, 10: { azione: "cessione", importo: 6100 } };
-const senza = C.calcola(D.leggiTransazioni(TX), { anno: 2023 });
-const con = C.calcola(dati, { anno: 2023, correzioni: CORR });
+// queste prove usano le permute al valore del momento anche dal 2023 (swapNeutriDal: null); gli swap neutri hanno una prova a parte
+const senza = C.calcola(D.leggiTransazioni(TX), { anno: 2023, swapNeutriDal: null });
+const con = C.calcola(dati, { anno: 2023, correzioni: CORR, swapNeutriDal: null });
 const riga_ = (r, s) => r.righe.find((x) => x.simbolo === s);
 const ces = (r, tipo) => r.cessioni.filter((c) => c.tipo === tipo);
 
@@ -83,5 +84,15 @@ t("Confronto con l'elenco delle cessioni Koinly: scomposizione della differenza 
   assert.equal(x.nonRilevanti.length, 1); assert.equal(x.nonRilevanti[0].tipo, "permuta tra cripto");
   // il corrispettivo Koinly della vendita (45.000 su 1,5 BTC) coincide; nessuna differenza di costo
   near(x.voci[2].importo, 0); near(x.voci[3].importo, 0);
+});
+t("Dal 2023 gli swap tra cripto sono neutri: la cripto ricevuta prende il costo LIFO di quella ceduta", () => {
+  const r = C.calcola(D.leggiTransazioni(TX), { anno: 2023, correzioni: CORR });
+  const sw = r.cessioni.find((c) => /^swap tra cripto/.test(c.tipo));
+  assert.ok(sw); near(sw.corrispettivo, sw.costo); near(sw.risultato, 0); near(sw.costo, 5000);
+  // i 10 ETH ricevuti hanno costo 5.000 (trasferito), non 15.000 (valore del momento)
+  // carichi ETH: swap 5.000 (costo trasferito) + reward 1.500 + rientro da wallet proprio 2.000
+  // (il prelievo di 2 ETH aveva messo da parte il reward da 1.500 e 1 ETH dello swap a 500)
+  near(riga_(r, "ETH").costoCaricato, 5000 + 1500 + 2000);
+  assert.ok(!C.rilevante(sw.tipo, 2023));
 });
 console.log("\n" + n + " prove superate");

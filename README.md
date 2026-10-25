@@ -37,6 +37,11 @@ Uscite: tabella a video con i periodi; Excel (fogli «Righi RW» e «Riepilogo p
   - permuta: valore del momento;
   - interessi, reward e airdrop: valore del giorno;
   - trasferimenti tra wallet propri: nessun effetto, e quelli non abbinati da Koinly sono riconosciuti in automatico.
+- **Swap dal 2023** (regole dello studio, art. 67 c. 1 lett. c-sexies TUIR):
+  - permute tra cripto, acquisti con stablecoin e scambi tra stablecoin non realizzano e trasferiscono il costo LIFO alla cripto ricevuta;
+  - restano cessioni le vendite contro valuta e contro stablecoin;
+  - prima del 2023 le permute sono al valore del momento;
+  - la regola si può disattivare nella scheda per confronto.
 - **Correzioni dello studio,** per riga del file e con il motivo:
   - deposito da wallet non collegato: costo documentato, rientro da wallet proprio o costo zero;
   - prelievo verso indirizzo non collegato: trasferimento a wallet proprio o cessione a terzi;

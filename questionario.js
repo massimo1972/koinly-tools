@@ -77,7 +77,7 @@
 
     /* --- costi LIFO e cessioni per anno --- */
     var costi = {};
-    anni.forEach(function (a) { costi[a] = C.calcola(d, { anno: a, fuso: fuso, correzioni: o.correzioni }); });
+    anni.forEach(function (a) { costi[a] = C.calcola(d, { anno: a, fuso: fuso, correzioni: o.correzioni, swapNeutriDal: o.swapNeutriDal }); });
     var spam = {}; anni.forEach(function (a) { costi[a].righe.forEach(function (r) { if (r.spam) spam[r.chiave] = true; }); });
     var nonSpam = function (k) { return !spam[k] && !D.motivoSpam({ chiave: k, mai: false }, false); };
     var perRiga = {}; d.movimenti.forEach(function (t) { perRiga[t.riga] = t; });
@@ -108,7 +108,8 @@
       if (!a || !X.nonSpam(a.valuta) || t.abbinata) return;
       if (da && da.valuta === a.valuta) return;
       var tag = String(t.tag || "").toLowerCase().replace(/[\s-]+/g, "_");
-      var voce = da ? (fiat(da.simbolo) ? "acquisto con valuta" : "permuta / acquisto con altre cripto") : tag ? "provento (" + tag.replace(/_/g, " ") + ")" : "deposito da wallet non collegato";
+      // i prestiti ricevuti (tag loan) non sono proventi
+      var voce = da ? (fiat(da.simbolo) ? "acquisto con valuta" : "permuta / acquisto con altre cripto") : /loan/.test(tag) ? "prestito ricevuto" : tag ? "provento (" + tag.replace(/_/g, " ") + ")" : "deposito da wallet non collegato";
       var p = provenienze[+m.g.slice(0, 4)]; var x = p[voce] || (p[voce] = { n: 0, valore: 0 }); x.n++; x.valore += t.valore || 0;
     });
 

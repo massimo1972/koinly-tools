@@ -89,6 +89,11 @@
   /* dati: risultato di KoinlyDetenzione.leggiTransazioni; opz: { anno, fuso, correzioni } */
   function calcola(dati, opz) {
     var o = opz || {}, fuso = o.fuso || dati.fuso || "UTC", anno = o.anno, daVerificare = [];
+    /* Regole dello studio dal 1/1/2023 (art. 67 c. 1 lett. c-sexies TUIR): permute tra cripto, acquisti di cripto con stablecoin
+       e scambi tra stablecoin sono «swap» non realizzativi: la cripto ricevuta prende il costo LIFO di quella ceduta.
+       Restano cessioni le vendite contro valuta e contro stablecoin. Prima del 2023 le permute restano al valore del momento.
+       opz.swapNeutriDal: data da cui applicare la regola (predefinita 2023-01-01; null = mai, permute sempre al valore del momento). */
+    var swapDal = o.swapNeutriDal === undefined ? "2023-01-01" : o.swapNeutriDal;
     var inizio = anno + "-01-01", fine = anno + "-12-31";
     var pile = {}, eventi = [], avvisi = {}, fotoInizio = null, fotoFine = null, valuteValore = {};
     var get = function (v) { return pile[v.valuta] || (pile[v.valuta] = pila(v.valuta, v.simbolo)); };
@@ -131,6 +136,8 @@
       }
       var daF = da && fiat(da.simbolo), aF = a && fiat(a.simbolo);
       var corr0 = correzione(o, t);
+      // swap neutro: scambio tra cripto (non verso stablecoin) dalla data della regola
+      var swap = !!(swapDal && g >= swapDal && da && a && !daF && !aF && !(stable(a.simbolo) && !stable(da.simbolo))), costoTrasf = 0;
       // corrispettivo / costo in euro dell'operazione
       var valoreOp = daF && da.simbolo === "EUR" ? -D.decNum(da.q) : aF && a.simbolo === "EUR" ? D.decNum(a.q) : t.valore;
       var segnala = function (tipo, v) { daVerificare.push({ riga: t.riga, data: g, tipo: tipo, cripto: v.simbolo, chiave: v.valuta, q: D.decStr(v.q < 0n ? -v.q : v.q), wallet: tipo === "prelievo" ? t.walletDa : t.walletA, valore: t.valore, txHash: t.txHash, indirizzo: tipo === "prelievo" ? t.txDest : t.txSrc, correzione: corr0 }); };
@@ -147,6 +154,7 @@
         if (s.scoperto > 0n) nota("scoperto", "Cessioni di quantità senza strati di costo (saldo negativo): storico incompleto, costo zero sulla parte scoperta");
         var tipo, corr;
         if (a && aF) { tipo = "contro valuta"; corr = valoreOp - onere; }
+        else if (a && swap) { tipo = "swap " + (stable(da.simbolo) ? (stable(a.simbolo) ? "stablecoin / stablecoin" : "acquisto con stablecoin") : "tra cripto") + " (neutro, costo trasferito)"; corr = s.costo; costoTrasf = s.costo; }
         else if (a) { tipo = stable(a.simbolo) ? (stable(da.simbolo) ? "stablecoin / stablecoin" : "contro stablecoin") : stable(da.simbolo) ? "acquisto con stablecoin" : "permuta tra cripto"; corr = valoreOp; }
         else if (USCITE.test(tag)) { tipo = "uscita (" + tag.replace(/_/g, " ") + ")"; corr = 0; }
         else {
@@ -169,6 +177,7 @@
         var Pa = get(a); Pa.nMov++;
         var costo, origine;
         if (da && daF) { costo = valoreOp + onere; origine = "acquisto con " + da.simbolo; }
+        else if (da && swap) { costo = costoTrasf + (fee && !fiat(fee.simbolo) ? 0 : onere); origine = "swap da " + da.simbolo + " (costo trasferito)"; }
         else if (da) { costo = valoreOp + (fee && !fiat(fee.simbolo) ? 0 : onere); origine = "permuta da " + da.simbolo; }
         else if (PROVENTI.test(tag)) { costo = valoreOp; origine = tag.replace(/_/g, " "); }
         else if (/loan/i.test(tag)) { costo = valoreOp; origine = "prestito ricevuto"; nota("prestito", "Cripto ricevute in prestito: caricate al valore del giorno, da verificare"); }
@@ -239,7 +248,7 @@
     cessioni.forEach(function (c) { var t = perTipo[c.tipo] || (perTipo[c.tipo] = { n: 0, corrispettivi: 0, costi: 0 }); t.n++; t.corrispettivi += c.corrispettivo; t.costi += c.costo; });
     var rilevanti = function (c) { return c.tipo === "contro valuta" || c.tipo === "contro stablecoin"; };
     var somma = function (f) { return cessioni.filter(f).reduce(function (s, c) { return { corrispettivi: s.corrispettivi + c.corrispettivo, costi: s.costi + c.costo }; }, { corrispettivi: 0, costi: 0 }); };
-    var cessioniVere = function (c) { return !/^commissione|^prelievo|^uscita/.test(c.tipo); };
+    var cessioniVere = function (c) { return !/^commissione|^prelievo|^uscita|^trasferimento|^swap/.test(c.tipo); };
     return { anno: anno, fuso: fuso, righe: righe, cessioni: cessioni, perTipo: perTipo,
       totali: { tutte: somma(cessioniVere), controValutaStable: somma(rilevanti) },
       avvisi: Object.keys(avvisi).map(function (k) { return avvisi[k].testo + " (" + avvisi[k].n + ")"; }),
@@ -266,7 +275,7 @@
      La differenza tra la plusvalenza Koinly dell'anno e la nostra plusvalenza rilevante si scompone in:
      operazioni che Koinly tassa ma che per noi non rilevano, differenze di corrispettivo e di costo sulle stesse cessioni,
      cessioni presenti solo in Koinly e cessioni presenti solo da noi. */
-  function rilevante(tipo, anno) { return anno >= 2023 ? /^contro (valuta|stablecoin)$|^cessione a terzi$/.test(tipo) : !/^commissione|^prelievo|^uscita|^trasferimento/.test(tipo); }
+  function rilevante(tipo, anno) { return anno >= 2023 ? /^contro (valuta|stablecoin)$|^cessione a terzi$/.test(tipo) : !/^commissione|^prelievo|^uscita|^trasferimento|^swap/.test(tipo); }
   function confrontaCessioniKoinly(ris, koinly, anno) {
     var K = (koinly || []).filter(function (c) { return +c.data.slice(0, 4) === anno; });
     var N = ris.cessioni.map(function (c, i) { return { i: i, c: c, q: Number(c.q), usata: false }; });

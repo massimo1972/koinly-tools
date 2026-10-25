@@ -197,8 +197,8 @@
   var cacheCosti = {};
   function costiAnno(anno) {
     if (!S.tx) return null;
-    var k = anno + "|" + S.fuso + "|" + JSON.stringify(S.correzioni);
-    if (!cacheCosti[k]) { cacheCosti = {}; cacheCosti[k] = C.calcola(S.tx.dati, { anno: anno, fuso: S.fuso, correzioni: S.correzioni }); }
+    var k = anno + "|" + S.fuso + "|" + swapDal() + "|" + JSON.stringify(S.correzioni);
+    if (!cacheCosti[k]) { cacheCosti = {}; cacheCosti[k] = C.calcola(S.tx.dati, { anno: anno, fuso: S.fuso, correzioni: S.correzioni, swapNeutriDal: swapDal() }); }
     return cacheCosti[k];
   }
   /* corrispettivi e costi RT dell'anno secondo la fonte scelta: costi ricostruiti (predefinita se ci sono le transazioni), report Koinly o a mano.
@@ -293,7 +293,9 @@
   }
   /* ---------- costi di carico (LIFO globale) e correzioni dello studio ---------- */
   S.correzioni = {};
-  S.costi = { anno: null, filtro: { tipo: "", cripto: "", wallet: "", soloAperte: true }, mostraCessioni: "rilevanti" };
+  S.costi = { anno: null, filtro: { tipo: "", cripto: "", wallet: "", soloAperte: true }, mostraCessioni: "rilevanti", swapNeutri: true };
+  // criterio dello studio: dal 2023 gli swap tra cripto non realizzano e trasferiscono il costo
+  function swapDal() { return S.costi.swapNeutri ? "2023-01-01" : null; }
   var AZIONI = {
     deposito: [["", "Valore del giorno (come Koinly)"], ["costo", "Costo d'acquisto documentato (€)"], ["interno", "Rientro da wallet proprio (recupera i costi)"], ["zero", "Costo zero (prudenziale)"]],
     prelievo: [["", "Uscita senza corrispettivo"], ["interno", "Trasferimento a wallet proprio (i costi restano)"], ["cessione", "Cessione a terzi con corrispettivo (€)"]],
@@ -332,6 +334,7 @@
     var vere = r.righe.filter(function (x) { return !x.spam; });
     var tv = r.totali.controValutaStable, tt = r.totali.tutte;
     h += '<div class="panel"><div class="grid2"><label class="f"><span class="t">Anno</span><select data-cs="anno">' + anni.map(function (a) { return "<option" + (a === anno ? " selected" : "") + ">" + a + "</option>"; }).join("") + "</select></label>" +
+      '<label class="f"><span class="t">Permute tra cripto dal 2023</span><select data-cs="swapNeutri"><option value="si"' + (S.costi.swapNeutri ? " selected" : "") + '>Swap neutri: costo trasferito (criterio dello studio)</option><option value="no"' + (S.costi.swapNeutri ? "" : " selected") + '>Al valore del momento (come Koinly)</option></select><span class="small">Dal 2023 permute tra cripto, acquisti con stablecoin e scambi tra stablecoin non realizzano; restano cessioni le vendite contro valuta e contro stablecoin. Prima del 2023 le permute sono sempre al valore del momento.</span></label>' +
       '<div class="f"><span class="t">Lavoro dello studio (correzioni e attribuzioni dei wallet)</span><div class="toolbar"><button type="button" class="btn ghost" id="salvaLavoro">Salva in un file</button><label class="btn ghost" style="display:inline-block">Carica un file salvato<input type="file" accept=".json" data-lavoro hidden></label></div><span class="small">' + (S.lavoroCaricato ? "Caricato: " + esc(S.lavoroCaricato) : Object.keys(S.correzioni).length + " correzioni in questa sessione. Salvatele per non perderle chiudendo la pagina.") + "</span></div></div></div>";
     var da = r.daVerificare, aperte = da.filter(function (v) { return !S.correzioni[v.riga]; });
     h += '<div class="cards" style="margin-top:14px">' +
@@ -519,10 +522,10 @@
   var cacheQ = null;
   function calcolaQuest() {
     if (!S.tx || !S.quest.anni.length) return null;
-    var k = JSON.stringify([S.quest.anni, S.fuso, S.correzioni, Object.keys(S.quest.saldiReport)]);
+    var k = JSON.stringify([S.quest.anni, S.fuso, S.correzioni, Object.keys(S.quest.saldiReport), swapDal()]);
     if (cacheQ && cacheQ.k === k) return cacheQ.q;
     var iv = {}; if (ivaca) iv[S.anno] = ivaca.totali.ivaca;
-    var q = QZ.calcola(S.tx.dati, { anni: S.quest.anni, fuso: S.fuso, correzioni: S.correzioni, saldiReport: S.quest.saldiReport, ivaca: iv });
+    var q = QZ.calcola(S.tx.dati, { anni: S.quest.anni, fuso: S.fuso, correzioni: S.correzioni, swapNeutriDal: swapDal(), saldiReport: S.quest.saldiReport, ivaca: iv });
     cacheQ = { k: k, q: q }; return q;
   }
   function attribuzione(c) { return S.quest.flag[c.id] || c.proposta; }
@@ -640,7 +643,7 @@
     var mov = S.tx.dati.movimenti, primo = mov.length ? D.giorno(mov[0].ts, S.fuso) : "", ultimo = mov.length ? D.giorno(mov[mov.length - 1].ts, S.fuso) : "";
     var st = window.KoinlyStudio || {}, c = S.quest.cliente;
     var conCorr = {}, senzaCorr = {};
-    anni.forEach(function (a) { conCorr[a] = confrontoCosti(C.calcola(S.tx.dati, { anno: a, fuso: S.fuso, correzioni: S.correzioni }), a); senzaCorr[a] = C.calcola(S.tx.dati, { anno: a, fuso: S.fuso }); });
+    anni.forEach(function (a) { conCorr[a] = confrontoCosti(C.calcola(S.tx.dati, { anno: a, fuso: S.fuso, correzioni: S.correzioni, swapNeutriDal: swapDal() }), a); senzaCorr[a] = C.calcola(S.tx.dati, { anno: a, fuso: S.fuso, swapNeutriDal: swapDal() }); });
     var r0 = conCorr[anni[anni.length - 1]];
     var dv = r0.daVerificare, corr = dv.filter(function (v) { return S.correzioni[v.riga]; });
     var etichettaAz = function (v, cz) { var o = (AZIONI[v.tipo] || []).filter(function (x) { return x[0] === cz.azione; })[0]; return o ? o[1] : cz.azione; };
@@ -657,7 +660,7 @@
       "<p>Fonte principale: l'esportazione completa delle transazioni dal software Koinly (file «" + esc(S.tx.nome) + "», " + mov.length.toLocaleString("it-IT") + " operazioni dal " + it(primo) + " al " + it(ultimo) + ", date in " + (S.fuso === "UTC" ? "UTC" : "ora italiana") + ")" +
       (S.inizio ? "; saldi Koinly a inizio anno («" + esc(S.inizio.nome) + "»)" : "") + (S.fine ? "; saldi Koinly a fine anno («" + esc(S.fine.nome) + "»)" : "") + ". I report di Koinly sono stati usati come riscontro, non come dato definitivo.</p>" +
       "<h2>2. Punto di partenza e metodo</h2><p>I costi non sono stati presi dai saldi di Koinly a inizio anno, ma ricostruiti <b>dall'origine</b>, cioè dalla prima operazione registrata (" + it(primo) + "), seguendo ogni movimento fino alla fine del periodo. Per ogni cripto-attività è stata formata una pila di strati di costo, unica per tutti i wallet e per tutti gli anni (<b>LIFO globale</b>, non per singolo wallet né per singolo anno): ogni cessione scarica per prima la quantità acquistata più di recente.</p>" +
-      "<ul><li><b>Acquisto con valuta tradizionale</b>: costo pari all'importo pagato, comprese le commissioni.</li><li><b>Permuta</b> tra cripto-attività: la cripto ceduta si considera ceduta al valore del momento; quella ricevuta entra con lo stesso valore come costo.</li>" +
+      "<ul><li><b>Acquisto con valuta tradizionale</b>: costo pari all'importo pagato, comprese le commissioni.</li><li>" + (S.costi.swapNeutri ? "<b>Permute fino al 2022</b>: la cripto ceduta si considera ceduta al valore del momento e quella ricevuta entra con quel valore. <b>Dal 2023</b> permute tra cripto, acquisti di cripto con stablecoin e scambi tra stablecoin sono «swap» non realizzativi (art. 67 c. 1 lett. c-sexies TUIR): la cripto ricevuta prende il costo LIFO di quella ceduta." : "<b>Permuta</b> tra cripto-attività: la cripto ceduta si considera ceduta al valore del momento; quella ricevuta entra con lo stesso valore come costo.") + "</li>" +
       "<li><b>Interessi, reward, airdrop, cashback</b>: caricati al valore del giorno di ricezione.</li><li><b>Trasferimenti tra wallet propri</b>: nessun effetto sui costi, salvo la commissione; " + r0.trasferimentiAbbinati + " coppie di prelievo e deposito non abbinate da Koinly sono state riconosciute come trasferimenti interni (stessa cripto, quantità uguale al netto della commissione, date entro 3 giorni).</li>" +
       "<li><b>Commissioni pagate in cripto</b>: scaricano strati di costo e il loro valore si aggiunge al costo dell'acquisto o riduce il corrispettivo.</li>" +
       "<li><b>Rilevanza fiscale</b>: dal 2023 sono considerate cessioni rilevanti per il quadro RT quelle contro valuta tradizionale e contro stablecoin (art. 67 c. 1 lett. c-sexies TUIR); le permute tra cripto-attività sono esposte a parte.</li>" +
@@ -879,7 +882,7 @@
     if (t.matches("[data-corrnota]")) { var rn = t.getAttribute("data-corrnota"); if (S.correzioni[rn]) S.correzioni[rn].motivo = t.value.trim(); return; }
     if (t.matches("[data-corrimp]")) { var ri = t.getAttribute("data-corrimp"); if (S.correzioni[ri]) S.correzioni[ri].importo = t.value === "" ? null : +t.value; render(); return; }
     if (t.matches("[data-cf]")) { var cf = t.getAttribute("data-cf"); S.costi.filtro[cf] = t.type === "checkbox" ? t.checked : t.value; render(); return; }
-    if (t.matches("[data-cs]")) { var cs = t.getAttribute("data-cs"); S.costi[cs] = cs === "anno" ? +t.value : t.value; render(); return; }
+    if (t.matches("[data-cs]")) { var cs = t.getAttribute("data-cs"); S.costi[cs] = cs === "anno" ? +t.value : cs === "swapNeutri" ? t.value === "si" : t.value; render(); return; }
     if (t.matches("[data-lavoro]") && t.files[0]) { caricaLavoro(t.files[0]); return; }
     if (t.matches("[data-banca]") && t.files.length) { caricaBanca(t.files); return; }
     if (t.matches("[data-koinlyces]") && t.files[0]) { caricaKoinlyCes(t.files[0]); return; }
