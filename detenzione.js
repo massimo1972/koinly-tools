@@ -48,8 +48,10 @@
   }
   /* due formati: backup (Date (UTC), From Amount, From Currency "BTC;1", To..., Fee...) e transaction history (Date, Sent Amount, Sent Currency, Received..., Fee...) */
   var FORMATI = [
-    { nome: "backup", data: "Date (UTC)", fuso: "UTC", da: ["From Amount", "From Currency"], a: ["To Amount", "To Currency"], fee: ["Fee Amount", "Fee Currency"], tipo: "Type", tag: "Tag", cancellata: "Deleted", id: "ID (read-only)" },
-    { nome: "history", data: "Date", fuso: null, da: ["Sent Amount", "Sent Currency"], a: ["Received Amount", "Received Currency"], fee: ["Fee Amount", "Fee Currency"], tipo: "Type", tag: "Tag", cancellata: null, id: "TxHash" }
+    { nome: "backup", data: "Date (UTC)", fuso: "UTC", da: ["From Amount", "From Currency"], a: ["To Amount", "To Currency"], fee: ["Fee Amount", "Fee Currency"], tipo: "Type", tag: "Tag", cancellata: "Deleted", id: "ID (read-only)",
+      walletDa: "From Wallet (read-only)", walletA: "To Wallet (read-only)", idDa: "From Wallet ID", idA: "To Wallet ID" },
+    { nome: "history", data: "Date", fuso: null, da: ["Sent Amount", "Sent Currency"], a: ["Received Amount", "Received Currency"], fee: ["Fee Amount", "Fee Currency"], tipo: "Type", tag: "Tag", cancellata: null, id: "TxHash",
+      walletDa: "Sending Wallet", walletA: "Receiving Wallet", idDa: null, idA: null }
   ];
   function leggiTransazioni(testo) {
     var tab = righeCsv(String(testo).replace(/^﻿/, ""));
@@ -61,7 +63,10 @@
     if (!fmt) return { errore: "Il file non sembra un export delle transazioni di Koinly: mancano le colonne data, importi inviati e ricevuti." };
     var H = tab[iH].map(function (x) { return x.trim(); });
     var col = function (n) { return H.indexOf(n); };
-    var c = { data: col(fmt.data), da: col(fmt.da[0]), daV: col(fmt.da[1]), a: col(fmt.a[0]), aV: col(fmt.a[1]), fee: col(fmt.fee[0]), feeV: col(fmt.fee[1]), tipo: col(fmt.tipo), tag: col(fmt.tag), canc: fmt.cancellata ? col(fmt.cancellata) : -1, val: col("Net Value (read-only)") >= 0 ? col("Net Value (read-only)") : col("Net Value (EUR)") };
+    var c = { data: col(fmt.data), da: col(fmt.da[0]), daV: col(fmt.da[1]), a: col(fmt.a[0]), aV: col(fmt.a[1]), fee: col(fmt.fee[0]), feeV: col(fmt.fee[1]), tipo: col(fmt.tipo), tag: col(fmt.tag), canc: fmt.cancellata ? col(fmt.cancellata) : -1, val: col("Net Value (read-only)") >= 0 ? col("Net Value (read-only)") : col("Net Value (EUR)"),
+      valFee: col("Fee Value (read-only)") >= 0 ? col("Fee Value (read-only)") : col("Fee Value (EUR)"), valuta: col("Value Currency (read-only)"), desc: col("Description"),
+      wDa: col(fmt.walletDa), wA: col(fmt.walletA), idDa: fmt.idDa ? col(fmt.idDa) : -1, idA: fmt.idA ? col(fmt.idA) : -1, src: col("TxSrc"), dest: col("TxDest"), hash: col("TxHash") };
+    // controvalori: nel backup sono nella valuta base dell'account Koinly (colonna Value Currency), nella history in euro
     /* numeri: il backup usa 1234.5678; la transaction history in italiano usa 1.234,5678 */
     var it = false;
     for (var z = iH + 1; z < Math.min(tab.length, iH + 400) && !it; z++) [c.da, c.a, c.fee].forEach(function (k) { if (k >= 0 && /^-?\d{1,3}(\.\d{3})*,\d+$|^-?\d+,\d+$/.test((tab[z][k] || "").trim())) it = true; });
@@ -75,7 +80,12 @@
       var d = parseData(x[c.data]);
       if (!d) { senzaData++; continue; }
       if (!fusoFile && /UTC\s*$/.test(x[c.data] || "")) fusoFile = "UTC";
-      var t = { riga: r + 1, ts: d, tipo: (x[c.tipo] || "").trim(), tag: (x[c.tag] || "").trim(), valore: c.val >= 0 ? parseFloat(norm(x[c.val])) || 0 : 0, voci: [] };
+      var vv = c.valuta >= 0 ? valuta(x[c.valuta]) : null;
+      var t = { riga: r + 1, ts: d, tipo: (x[c.tipo] || "").trim(), tag: (x[c.tag] || "").trim(), valore: c.val >= 0 ? parseFloat(norm(x[c.val])) || 0 : 0,
+        valoreFee: c.valFee >= 0 ? parseFloat(norm(x[c.valFee])) || 0 : 0, valutaValore: vv ? vv.simbolo : "EUR", descrizione: c.desc >= 0 ? (x[c.desc] || "").trim() : "",
+        // wallet di uscita e di entrata (nome Koinly senza il suffisso «;rete»), indirizzi e identificativo della transazione
+        walletDa: nomeWallet(x[c.wDa]), walletA: nomeWallet(x[c.wA]), idDa: c.idDa >= 0 ? (x[c.idDa] || "").trim() : "", idA: c.idA >= 0 ? (x[c.idA] || "").trim() : "",
+        txSrc: c.src >= 0 ? (x[c.src] || "").trim() : "", txDest: c.dest >= 0 ? (x[c.dest] || "").trim() : "", txHash: c.hash >= 0 ? (x[c.hash] || "").trim() : "", voci: [] };
       var voce = function (qta, val, segno, lato) {
         var v = valuta(val); if (!v) return;
         var q = dec(norm(qta)); if (q === 0n) return;
@@ -87,6 +97,8 @@
     movimenti.sort(function (p, q) { return p.ts - q.ts || p.riga - q.riga; });
     return { formato: fmt.nome, numeri: it ? "it" : "en", fuso: fusoFile, movimenti: movimenti, righe: tab.length - iH - 1, cancellate: cancellate, senzaData: senzaData, senzaImporti: scartate };
   }
+  /* "Coinbase;coinbase" → "Coinbase" */
+  function nomeWallet(s) { var t = String(s == null ? "" : s).trim(); var i = t.lastIndexOf(";"); return (i > 0 ? t.slice(0, i) : t).trim(); }
   /* "BTC;1" → { chiave: "BTC;1", simbolo: "BTC" } */
   function valuta(s) {
     var t = String(s == null ? "" : s).trim(); if (!t) return null;
@@ -254,5 +266,5 @@
     return diff;
   }
 
-  return { leggiTransazioni: leggiTransazioni, calcola: calcola, confronta: confronta, dec: dec, decStr: decStr, giorno: giorno, it: it };
+  return { leggiTransazioni: leggiTransazioni, calcola: calcola, confronta: confronta, dec: dec, decStr: decStr, decNum: decNum, giorno: giorno, it: it, motivoSpam: motivoSpam, FIAT: FIAT, UNO: UNO };
 });
