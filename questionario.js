@@ -24,7 +24,7 @@
   }
   function indirizzo(s) { return /^(0x[0-9a-f]{20,}|bc1[0-9a-z]{20,}|[13][1-9A-HJ-NP-Za-km-z]{25,34}|[1-9A-HJ-NP-Za-km-z]{32,44}|r[1-9A-HJ-NP-Za-km-z]{24,34}|T[1-9A-HJ-NP-Za-km-z]{33})$/i.test(String(s || "")); }
 
-  /* d: dati di KoinlyDetenzione.leggiTransazioni; opz: { anni: [2023, 2024], fuso, saldiReport: { "2024-12-31": saldi, "2024-01-01": saldi }, ivaca: { 2024: importo } } */
+  /* d: dati di KoinlyDetenzione.leggiTransazioni; opz: { anni: [2023, 2024], fuso, correzioni, saldiReport: { "2024-12-31": saldi, "2024-01-01": saldi }, ivaca: { 2024: importo } } */
   function prepara(d, opz) {
     var o = opz || {}, fuso = o.fuso || d.fuso || "UTC", anni = (o.anni || []).slice().sort();
     var nelPeriodo = function (g) { return anni.indexOf(+g.slice(0, 4)) >= 0; };
@@ -78,7 +78,7 @@
 
     /* --- costi LIFO e cessioni per anno --- */
     var costi = {};
-    anni.forEach(function (a) { costi[a] = C.calcola(d, { anno: a, fuso: fuso }); });
+    anni.forEach(function (a) { costi[a] = C.calcola(d, { anno: a, fuso: fuso, correzioni: o.correzioni }); });
     var spam = {}; anni.forEach(function (a) { costi[a].righe.forEach(function (r) { if (r.spam) spam[r.chiave] = true; }); });
     var nonSpam = function (k) { return !spam[k] && !D.motivoSpam({ chiave: k, mai: false }, false); };
     var perRiga = {}; d.movimenti.forEach(function (t) { perRiga[t.riga] = t; });
@@ -170,6 +170,23 @@
       });
     });
 
+    /* Elenco di wallet, chiavi pubbliche e indirizzi da attribuire (mio / non mio / da chiarire):
+       wallet registrati in Koinly (piattaforme e wallet non custodial) e indirizzi esterni dei movimenti non abbinati. */
+    var propri = {}; Object.keys(X.wallet).forEach(function (k) { X.wallet[k].indirizzi.forEach(function (i) { propri[i] = k; }); });
+    var chiavi = elencoWallet.map(function (w) {
+      return { id: "w:" + w.nome, genere: "wallet Koinly", etichetta: w.nome, tipo: w.tipo, chiavePubblica: w.chiavePubblica || "", indirizzi: w.indirizzi, primo: w.primo, ultimo: w.ultimo, n: w.n,
+        proposta: w.tipo === "custodial (exchange)" ? "piattaforma" : "da chiarire" };
+    });
+    var esterni = {};
+    anni.forEach(function (a) {
+      (X.costi[a].daVerificare || []).forEach(function (v) {
+        var ind = (v.indirizzo || "").toLowerCase(); if (!indirizzo(ind) || propri[ind]) return;
+        var e = esterni[ind] || (esterni[ind] = { id: "a:" + ind, genere: "indirizzo esterno", etichetta: ind, tipo: v.tipo === "prelievo" ? "destinatario di invii" : "mittente di versamenti", chiavePubblica: "", indirizzi: [ind], primo: v.data, ultimo: v.data, n: 0, cripto: {}, valore: 0, proposta: "da chiarire" });
+        e.n++; e.cripto[v.cripto] = true; e.valore += v.valore || 0; if (v.data < e.primo) e.primo = v.data; if (v.data > e.ultimo) e.ultimo = v.data;
+      });
+    });
+    Object.keys(esterni).forEach(function (k) { var e = esterni[k]; e.cripto = Object.keys(e.cripto).join(", "); chiavi.push(e); });
+
     // 8. rilevanza reddituale per anno
     var rilevanza = anni.map(function (a) {
       var c = X.costi[a], tv = c.totali.controValutaStable, tutte = c.totali.tutte;
@@ -184,7 +201,7 @@
     return { anni: anni, fuso: X.fuso,
       d1: { acquisti: Object.keys(acquisti).map(function (k) { var x = acquisti[k]; x.valute = Object.keys(x.valute).join(", "); x.cripto = Object.keys(x.cripto).join(", "); return x; }).sort(function (a, b) { return a.anno - b.anno || b.importo - a.importo; }), provenienze: provenienze },
       d2: { movimenti: bonifici, sintesi: Object.keys(bonificiSintesi).map(function (k) { return bonificiSintesi[k]; }), iban: Object.keys(iban) },
-      d3: { wallet: elencoWallet, alleDate: walletAlleDate },
+      d3: { wallet: elencoWallet, alleDate: walletAlleDate, chiavi: chiavi },
       d4: { transazioni: transazioni },
       d5: { alleDate: walletAlleDate },
       d6: { cessioni: cessioni, proventi: proventi },

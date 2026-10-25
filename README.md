@@ -28,7 +28,42 @@ Criteri (regole dello studio):
 
 Uscite: tabella a video con i periodi; Excel (fogli «Righi RW» e «Riepilogo per cripto», A4 orizzontale, imposta a formula); resoconto da stampare o salvare in PDF con tutti i periodi.
 
-## 2. Sanzioni RW e RT
+## 2. Costi di carico (LIFO globale)
+
+- **Partenza:** costi ricostruiti dall'origine, dalla prima transazione Koinly, non dai saldi di inizio anno.
+- **Metodo:** una pila di strati per cripto, unica per tutti i wallet e tutti gli anni (LIFO globale).
+- **Criteri:**
+  - acquisto: costo pagato con le commissioni;
+  - permuta: valore del momento;
+  - interessi, reward e airdrop: valore del giorno;
+  - trasferimenti tra wallet propri: nessun effetto, e quelli non abbinati da Koinly sono riconosciuti in automatico.
+- **Correzioni dello studio,** per riga del file e con il motivo:
+  - deposito da wallet non collegato: costo documentato, rientro da wallet proprio o costo zero;
+  - prelievo verso indirizzo non collegato: trasferimento a wallet proprio o cessione a terzi;
+  - operazione senza controvalore: valore inserito a mano.
+- **Salvataggio:** correzioni e attribuzioni si salvano e si ricaricano in un file JSON.
+- **Uscite:** riscontro con i costi dei report Koinly; Excel (costi, strati, cessioni, correzioni) e PDF. Il quadro RT usa questi costi come fonte predefinita.
+
+## 3. Questionario dell'Agenzia delle Entrate
+
+Elementi di risposta alle 8 domande tipo (art. 32 DPR 600/1973):
+
+1. acquisti e intermediari;
+2. movimenti in valuta sugli exchange;
+3. wallet alle date, con tipologia, chiavi pubbliche e indirizzi;
+4. elenco delle transazioni con TxHash;
+5. saldi per wallet valorizzati;
+6. cessioni, permute e proventi;
+7. trasferimenti verso terzi;
+8. rilevanza reddituale.
+
+Inoltre:
+
+- **Attribuzione** di ogni wallet o indirizzo («mio», «non mio», «piattaforma», «da chiarire»).
+- **Dichiarazione sostitutiva di atto notorio** (art. 47 DPR 445/2000) sui soli wallet dichiarati «mio».
+- **Memoria finale:** fonti, metodo, correzioni con i motivi, differenze anno per anno rispetto ai report Koinly senza modifiche.
+
+## 4. Sanzioni RW e RT
 
 Per ogni anno da ravvedere:
 
@@ -42,7 +77,7 @@ Per ogni anno da ravvedere:
 
 Fonti in [docs/FONTI.md](docs/FONTI.md).
 
-## 3. Quadri RW, RT e F24
+## 5. Quadri RW, RT e F24
 
 Prospetti compilati secondo i modelli ministeriali, stampabili in PDF con l'intestazione dello studio:
 
@@ -68,7 +103,7 @@ Prospetti compilati secondo i modelli ministeriali, stampabili in PDF con l'inte
 
   Anno di riferimento = anno d'imposta. Gli anni con dichiarazione omessa non vanno in F24.
 
-## 4. Guida
+## 6. Guida
 
 Scheda «Guida» per il cliente (`guida.js`): quali file Koinly scaricare, come usare le tre pagine, avvertenze. Si stampa o si salva in PDF con l'intestazione dello studio.
 
@@ -80,6 +115,8 @@ Scheda «Guida» per il cliente (`guida.js`): quali file Koinly scaricare, come 
 | `lettura.js` | Lettura dei report di saldi Koinly (CSV e PDF, italiano e inglese) |
 | `detenzione.js` | Transazioni, giorni di detenzione, periodi, token sospetti, riscontri |
 | `ivaca.js` | Valori dei periodi e imposta |
+| `costi.js` | Costi di carico LIFO globali dall'origine, abbinamento dei trasferimenti, correzioni dello studio |
+| `questionario.js` | Elementi di risposta al questionario dell'Agenzia, wallet, chiavi pubbliche e indirizzi |
 | `sanzioni.js` | Sanzioni, frazioni di ravvedimento, interessi legali, scadenze per anno |
 | `studio.js` | Dati dello studio per la stampa |
 | `guida.js` | Testo della guida per il cliente |
@@ -94,6 +131,7 @@ Scheda «Guida» per il cliente (`guida.js`): quali file Koinly scaricare, come 
 node test/detenzione.test.js
 node test/sanzioni.test.js
 node test/modelli.test.js
+node test/costi.test.js
 ```
 
 I dati delle prove sono inventati. I file reali dei clienti vanno solo nella cartella `campioni/`, esclusa da Git.

@@ -27,6 +27,8 @@ window.KoinlyGuida = '' +
 '<li>I <b>token sospetti</b> (pubblicità, phishing, imitazioni di USDT e USDC ricevute senza averle chieste) sono esclusi e messi in fondo: si possono includere se sono cripto vere.</li>' +
 '<li>Con <b>Scarica Excel</b> e <b>Stampa / PDF</b> ottenete i conteggi da conservare o da inviare allo studio.</li></ol></div>' +
 
+'<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Costi di carico e questionario dell\'Agenzia</h3>' +
+'<p>Dal file delle transazioni il programma ricostruisce i costi d\'acquisto di ogni cripto dall\'origine, con il metodo LIFO globale. Le operazioni di cui Koinly non conosce l\'origine o la destinazione (depositi e prelievi da wallet non collegati) vanno chiarite con lo studio: sono elencate nella scheda «Costi di carico». Nella scheda «Questionario AdE» si preparano le risposte alle domande dell\'Agenzia e si indica quali wallet e indirizzi sono vostri, per la dichiarazione sostitutiva.</p></div>' +
 '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">3. Sanzioni RW e RT (seconda scheda)</h3>' +
 '<p>Serve se negli anni passati le cripto non sono state indicate nella dichiarazione dei redditi (quadro RW per il possesso, quadro RT per le plusvalenze).</p><ol>' +
 '<li>Indicate la data in cui pensate di pagare: la riduzione delle sanzioni (ravvedimento) dipende da quanto tempo è passato.</li>' +
