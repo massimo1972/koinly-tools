@@ -15,6 +15,7 @@ File richiesti (tutti obbligatori):
 | Transazioni | CSV Koinly: `backup_transactions_koinly.csv` (date UTC, numeri 1234.56) oppure «transaction history» (anche con numeri in formato italiano) |
 | Saldi a inizio anno | «Beginning of year holdings» CSV (o report di fine dell'anno precedente) |
 | Saldi a fine anno | «End of year holdings» CSV o «Complete tax report» PDF |
+| Altri report Koinly (facoltativi) | «Income report», «Expenses report», «Gifts, donations & lost assets», «Other gains report» in CSV: solo riepiloghi informativi nella scheda dei quadri, non cambiano i calcoli |
 
 Criteri (regole dello studio):
 

@@ -2,14 +2,14 @@
 /* Koinly Tools · interfaccia. I file caricati restano nel browser: non vengono salvati né inviati in rete. */
 (function () {
   "use strict";
-  var L = window.KoinlyLettura, D = window.KoinlyDetenzione, I = window.KoinlyIvaca, Z = window.KoinlySanzioni, MOD = window.KoinlyModelli, C = window.KoinlyCosti, QZ = window.KoinlyQuestionario, BK = window.KoinlyBanca, ET = window.KoinlyEtoro;
+  var L = window.KoinlyLettura, D = window.KoinlyDetenzione, I = window.KoinlyIvaca, Z = window.KoinlySanzioni, MOD = window.KoinlyModelli, C = window.KoinlyCosti, QZ = window.KoinlyQuestionario, BK = window.KoinlyBanca, ET = window.KoinlyEtoro, KR = window.KoinlyReport;
   if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = "comune/vendor/pdf.worker.min.js";
   var app = document.getElementById("app");
 
   // ordine delle schede scelto dallo studio, numerate da 0
   var TABS = ["Guida", "Caricamento file", "Costi di carico (LIFO)", "Giorni di detenzione, IVACA e IVAFE", "Quadri RW, RT e F24", "Sanzioni RW, RT e RM", "Questionario AdE"];
   var VISTE = ["guida", "caricamento", "costi", "ivaca", "modelli", "sanzioni", "questionario"];
-  var S = { tab: 1, tx: null, inizio: null, fine: null, anno: null, fuso: "UTC", quota: 100, inclusi: {}, valori: {}, aperti: {}, spamAperti: false, errore: {}, saldiFile: [] };
+  var S = { tab: 1, tx: null, inizio: null, fine: null, anno: null, fuso: "UTC", quota: 100, inclusi: {}, valori: {}, aperti: {}, spamAperti: false, errore: {}, saldiFile: [], report: [] };
   var calcolo = null, ivaca = null;
 
   /* ---------- formattazione ---------- */
@@ -169,6 +169,8 @@
       slotKoinlyCes() +
       riquadro("Report dei saldi per il questionario", "Facoltativo", "Report di inizio e fine anno o Complete tax report degli anni richiesti dall'Agenzia (più file insieme): danno i prezzi Koinly alle date chieste nel questionario.",
         '<input type="file" multiple accept=".csv,.pdf" data-qrep>', Q.nomiReport.length ? '<p class="stato">' + esc(Q.nomiReport.join("; ")) + "</p>" : "", false, Q.nomiReport.length) +
+      riquadro("Altri report Koinly", "Facoltativo", "CSV di «Income report», «Expenses report», «Gifts, donations &amp; lost assets» e «Other gains report» (Koinly › Tax reports), anche più file e più anni insieme. Danno informazioni in più (redditi, commissioni, perdite, derivati) e non cambiano i calcoli: i riepiloghi sono nella scheda «Quadri RW, RT e F24».",
+        '<input type="file" multiple accept=".csv,text/csv" data-kreport>', (S.reportErrore ? '<p class="stato" style="color:var(--hi)">' + esc(S.reportErrore) + "</p>" : "") + (S.report.length ? '<p class="stato">' + S.report.map(function (z) { return "<b>" + esc(z.nome) + "</b> · " + esc(z.r.titolo) + " " + (z.r.anno || "") + " · " + z.r.righe.length.toLocaleString("it-IT") + " righe, " + E(z.r.totale) + ' <button type="button" class="btnlink small" data-toglireport="' + esc(z.chiave) + '">togli</button>'; }).join("<br>") + "</p>" : ""), S.reportErrore, S.report.length) +
       "</div></div>";
     var et = S.etoro;
     h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Broker esteri e banche</h3><div class="slots">' +
@@ -946,6 +948,7 @@
     h += '<div class="panel" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Quadro RT · cripto-attività</h3>' + (S.sanz.anni.length ? '<button type="button" class="btn gold" id="stampaRT">Stampa / PDF quadro RT</button>' : "") + "</div>";
     h += S.sanz.anni.length ? S.sanz.anni.map(function (a) { return tabellaRT(a); }).join("") : '<p class="muted">Il quadro RT si compila dagli anni inseriti nella pagina Sanzioni (corrispettivi delle vendite e costi di acquisto).</p>';
     h += "</div>";
+    h += pannelloReport();
     h += pannelloAltri();
     h += sezioneEtoro();
     // F24
@@ -954,6 +957,48 @@
       '<div class="grid2" style="margin:10px 0"><label class="f"><span class="t">Codice fiscale del contribuente</span><input type="text" data-modt="cf" value="' + esc(S.modelli.cf || "") + '" maxlength="16" autocomplete="off"></label><label class="f"><span class="t">Cognome e nome</span><input type="text" data-modt="nome" value="' + esc(S.modelli.nome || "") + '" autocomplete="off"></label></div>' +
       (f.righe.length ? tabellaF24(f) : '<p class="muted">L\'F24 si compila dai ravvedimenti della pagina Sanzioni.</p>') + "</div>";
     return h;
+  }
+  /* ---------- altri report Koinly (Income, Expenses, Gifts/Lost, Other gains): solo informazioni, non entrano nei calcoli ---------- */
+  async function caricaReportKoinly(files) {
+    var errori = [];
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      try {
+        if (/\.pdf$/i.test(f.name)) throw new Error("serve il CSV.");
+        var r = KR.leggi(await f.text());
+        if (r.errore) throw new Error(r.errore);
+        // un file per tipo e anno: un nuovo report dello stesso tipo e anno sostituisce il precedente
+        var chiave = r.tipo + "-" + (r.anno || f.name);
+        S.report = S.report.filter(function (z) { return z.chiave !== chiave; });
+        S.report.push({ nome: f.name, chiave: chiave, r: r });
+      } catch (e) { errori.push(f.name + ": " + (e.message || String(e))); }
+    }
+    var ORD = ["redditi", "altri", "perdite", "commissioni"];
+    S.report.sort(function (a, b) { return (a.r.anno || 0) - (b.r.anno || 0) || ORD.indexOf(a.r.tipo) - ORD.indexOf(b.r.tipo); });
+    S.reportErrore = errori.join(" · ") || null;
+    render();
+  }
+  var NOTE_REPORT = {
+    redditi: "Ricompense di staking, airdrop, interessi, cashback e simili, al valore del giorno in cui sono state ricevute.",
+    altri: "Profitti e perdite che Koinly tiene fuori dalle plusvalenze ordinarie: di solito derivati, futures e margin. La qualificazione fiscale va valutata dallo studio.",
+    perdite: "Cripto regalate, donate, perse o rubate: per le perdite servono documenti (denunce, comunicazioni dell'exchange).",
+    commissioni: "Commissioni e costi pagati in cripto (commissioni di rete, transazioni fallite)."
+  };
+  function pannelloReport() {
+    if (!S.report.length) return "";
+    var h = '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Altri report Koinly · informazioni</h3><p class="small">Riepiloghi dei report caricati nella scheda «Caricamento file». Sono informazioni in più e riscontri: <b>non cambiano</b> il quadro RW, il quadro RT né le sanzioni.</p>';
+    S.report.forEach(function (z) {
+      var r = z.r, altri = r.tipo === "altri";
+      h += '<h4 style="margin:18px 0 4px">' + esc(r.titolo) + (r.anno ? " · " + r.anno : "") + "</h4>" + '<p class="small muted" style="margin:0 0 6px;overflow-wrap:anywhere">' + esc(NOTE_REPORT[r.tipo]) + " File: " + esc(z.nome) + ".</p>";
+      if (!r.righe.length) { h += "<p>Nessuna riga nel report: per l'anno Koinly non registra operazioni di questo tipo.</p>"; return; }
+      h += "<p><b>" + r.righe.length.toLocaleString("it-IT") + " righe</b> · " + (altri ? "profitti " + E(r.profitti) + " · perdite " + E(r.perdite) + " · <b>netto " + E(r.totale) + "</b>" : "totale <b>" + E(r.totale) + "</b>") + "</p>";
+      if (r.avvisi.length) h += '<p class="small" style="color:var(--mid)">' + r.avvisi.map(esc).join("<br>") + "</p>";
+      var righe = function (l) { return l.slice(0, 10).map(function (x) { return altri ? [esc(x.chiave), x.n.toLocaleString("it-IT"), E(x.profitti), E(x.perdite), E(x.valore)] : [esc(x.chiave), x.n.toLocaleString("it-IT"), E(x.valore)]; }); };
+      var resto = function (l) { return l.length > 10 ? '<p class="small">Le prime 10 voci su ' + l.length + ", per valore.</p>" : ""; };
+      var intest = function (t) { return altri ? [t, "n:Righe", "n:Profitti", "n:Perdite", "n:Netto"] : [t, "n:Righe", "n:Valore"]; };
+      h += '<div class="' + (altri ? "" : "grid2") + '">' + (altri ? "" : "<div>" + tab(intest("Tipo"), righe(r.perTipo)) + resto(r.perTipo) + "</div>") + "<div>" + tab(intest("Cripto"), righe(r.perAttivo)) + resto(r.perAttivo) + "</div>" + "<div>" + tab(intest("Wallet o exchange"), righe(r.perWallet)) + resto(r.perWallet) + "</div>" + (altri ? "<div>" + tab(intest("Mese"), r.perMese.map(function (x) { return [x.chiave.slice(5) + "/" + x.chiave.slice(0, 4), x.n.toLocaleString("it-IT"), E(x.profitti), E(x.perdite), E(x.valore)]; })) + "</div>" : "") + "</div>";
+    });
+    return h + "</div>";
   }
   /* quadri RT (sezione al 26%) e RM degli altri redditi, raggruppati per anno */
   function quadriAltri() {
@@ -1217,6 +1262,7 @@
     if (t.matches("[data-etsoglia]")) { S.etoroSoglia = S.etoroSoglia || {}; S.etoroSoglia[+t.getAttribute("data-etsoglia")] = t.checked; render(); return; }
     if (t.matches("[data-et]")) { S.etoroAnno = +t.value; render(); return; }
     if (t.matches("[data-qanno]")) { var qa = +t.getAttribute("data-qanno"); S.quest.anni = S.quest.anni.filter(function (x) { return x !== qa; }); if (t.checked) S.quest.anni.push(qa); S.quest.anni.sort(); render(); return; }
+    if (t.matches("[data-kreport]") && t.files.length) { caricaReportKoinly(t.files); return; }
     if (t.matches("[data-qrep]") && t.files.length) { caricaReportQuest(t.files); return; }
     if (t.matches("[data-chiave]")) { S.quest.chiavi[t.getAttribute("data-chiave")] = t.value.trim(); render(); return; }
     if (t.matches("[data-flag]")) { S.quest.flag[t.getAttribute("data-flag")] = t.value; render(); return; }
@@ -1252,6 +1298,7 @@
     else if (t.id === "togliEtoro") { S.etoro = null; S.etoroErrore = null; render(); }
     else if (t.id === "togliKoinlyCes") { S.koinlyCes = null; S.koinlyCesErrore = null; render(); }
     else if (t.id === "richiestaCliente") stampaRichiesta();
+    else if (t.matches("[data-toglireport]")) { var kr = t.getAttribute("data-toglireport"); S.report = S.report.filter(function (z) { return z.chiave !== kr; }); render(); }
     else if (t.id === "svuotaBanca") { S.banca = { movimenti: [], lette: 0, scartate: 0, file: 0 }; render(); }
     else if (t.id === "excelCosti") excelCosti();
     else if (t.id === "stampaCosti") stampaCosti();
