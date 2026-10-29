@@ -149,14 +149,16 @@
   if (S.percorso && !PERCORSI[S.percorso]) S.percorso = null;
   function scegliPercorsoA(p) { S.percorso = p; try { if (p) localStorage.setItem("koinlyPercorso", p); else localStorage.removeItem("koinlyPercorso"); } catch (e) {} }
   function schedePercorso() { var v = S.percorso ? PERCORSI[S.percorso].schede : VISTE; return VISTE.map(function (x, i) { return v.indexOf(x) >= 0 ? i : -1; }).filter(function (i) { return i >= 0; }); }
-  // riquadri di caricamento che servono solo in alcuni percorsi
-  function inPercorso(cosa) { return !S.percorso || S.percorso !== "dichiarazione" || (cosa !== "banca" && cosa !== "dichiarazioni"); }
+  // riquadri di caricamento per percorso: dichiarazioni dei redditi ed estratti conto servono sempre (provenienza dei fondi)
+  function inPercorso() { return true; }
   function scegliPercorso() {
     if (!S.percorso) return '<div class="panel percorso"><h2 style="margin-top:0">Che cosa dovete fare?</h2><p class="lead">Scegliete il percorso: il programma mostra solo i file da caricare e i documenti che servono.</p><div class="cards">' +
       Object.keys(PERCORSI).map(function (k) { return '<button type="button" class="card scelta" data-percorso="' + k + '"><div class="v">' + esc(PERCORSI[k].titolo) + '</div><div class="k">' + esc(PERCORSI[k].testo) + "</div></button>"; }).join("") + "</div></div>";
     return '<div class="panel percorso"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Percorso: ' + esc(PERCORSI[S.percorso].titolo) + '</h3><button type="button" class="btnlink small" data-percorso="">Cambia percorso</button></div>' + daProdurre() + "</div>";
   }
   /* documenti da produrre nel percorso scelto, con lo stato e la scheda dove si preparano */
+  // provenienza dei fondi: servono redditi indicati nelle dichiarazioni caricate o altre fonti con un importo
+  function conRedditi() { return S.dich.some(function (x) { return +x.reddito > 0; }) || S.fonti.some(function (x) { return +x.importo > 0; }); }
   function daProdurre() {
     var tab = function (v) { return VISTE.indexOf(v); }, qa = S.quest.anni.length, pr = S.percorso;
     var voci = [
@@ -168,7 +170,8 @@
       { per: ["agenzia", "entrambe"], doc: "Sanzioni e ravvedimento degli anni contestati", scheda: "sanzioni", pronto: S.sanz.anni.length > 0, manca: "gli anni nella scheda Sanzioni" },
       { per: ["agenzia", "entrambe", "fascicolo"], doc: pr === "fascicolo" ? "Risposte alle domande tipo dei controlli (PDF ed Excel)" : "Risposte al questionario: fascicolo PDF ed Excel", scheda: "questionario", pronto: qa > 0, manca: "gli anni da coprire" },
       { per: ["agenzia", "entrambe", "fascicolo"], doc: "Dichiarazione sostitutiva sui wallet", scheda: "questionario", pronto: qa > 0 && !!S.quest.cliente.nome, manca: "anni, attribuzione dei wallet e dati del dichiarante" },
-      { per: ["agenzia", "entrambe", "fascicolo"], doc: "Verifica della provenienza dei fondi", scheda: "questionario", pronto: qa > 0 && (S.dich.length > 0 || S.fonti.length > 0), manca: "le dichiarazioni dei redditi o le altre fonti" },
+      { per: ["dichiarazione"], doc: "Verifica della provenienza dei fondi", scheda: "modelli", pronto: !!S.tx && conRedditi(), manca: "le transazioni e il reddito delle dichiarazioni (o altre fonti)" },
+      { per: ["agenzia", "entrambe", "fascicolo"], doc: "Verifica della provenienza dei fondi", scheda: "questionario", pronto: qa > 0 && conRedditi(), manca: "gli anni e il reddito delle dichiarazioni (o altre fonti)" },
       { per: ["agenzia", "entrambe", "fascicolo"], doc: "Memoria tecnica in Word", scheda: "questionario", pronto: qa > 0, manca: "gli anni da coprire" },
       { per: ["agenzia", "entrambe"], doc: "Osservazioni allo schema di atto o valutazione dell'atto di contestazione", scheda: "pratica", pronto: S.atti.length > 0, manca: "l'atto ricevuto, quando arriva", facoltativo: true }
     ].filter(function (v) { return v.per.indexOf(pr) >= 0; });
@@ -1088,6 +1091,7 @@
     h += pannelloReport();
     h += pannelloAltri();
     h += sezioneEtoro();
+    if (S.percorso === "dichiarazione") h += S.tx ? sezioneProvenienza({ anni: anniCosti().filter(function (a) { return a >= 2017; }) }, false) : '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Verifica della provenienza dei fondi</h3><p class="muted">Caricate le transazioni Koinly e le dichiarazioni dei redditi nella scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>.</p></div>';
     h += S.broker.map(sezioneBroker).join("");
     // F24
     var f = MOD.f24(calcoliSanzioni());
