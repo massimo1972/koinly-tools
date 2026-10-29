@@ -15,7 +15,7 @@ File richiesti (tutti obbligatori):
 | Transazioni | CSV Koinly: `backup_transactions_koinly.csv` (date UTC, numeri 1234.56) oppure «transaction history» (anche con numeri in formato italiano) |
 | Saldi a inizio anno | «Beginning of year holdings» CSV (o report di fine dell'anno precedente) |
 | Saldi a fine anno | «End of year holdings» CSV o «Complete tax report» PDF |
-| Altri report Koinly (facoltativi) | «Income report», «Expenses report», «Gifts, donations & lost assets», «Other gains report» in CSV: solo riepiloghi informativi nella scheda dei quadri, non cambiano i calcoli |
+| Altri report Koinly (facoltativi) | «Income report», «Expenses report», «Gifts, donations & lost assets», «Other gains report» in CSV. Dal 2023 i proventi dell'Income report entrano nel quadro RT delle cripto (escludibili per anno); l'Other gains si riporta a scelta nel quadro RT al 26% o nel quadro RM; gli altri sono riepiloghi informativi nella scheda dei quadri |
 
 Criteri (regole dello studio):
 
@@ -114,6 +114,8 @@ Prospetti compilati secondo i modelli ministeriali, stampabili in PDF con l'inte
   | 2025 | Redditi PF 2026 | RT41 col. 3-4 | nessuna |
 
   Plusvalenza = corrispettivi − costi.
+- **Proventi da detenzione** (staking, reward, airdrop, interessi, cashback): dal 2023 sono redditi diversi dell'art. 67 c. 1 lett. c-sexies TUIR al ricevimento e si sommano ai corrispettivi del quadro RT a costo zero; le cripto ricevute entrano nei costi di carico con lo stesso valore. Fonte: «Income report» CSV dell'anno o, in mancanza, il riepilogo redditi del «Complete tax report». Escludibili anno per anno nella scheda Sanzioni. Fino al 2022 restano fuori dal quadro RT delle cripto.
+- **Other gains** (derivati, futures, margin): non entrano nel quadro RT delle cripto. Lo studio sceglie per anno, secondo il tipo di reddito, se riportarli nel quadro RT al 26% (redditi diversi: profitti come corrispettivi, perdite come costi) o nel quadro RM (redditi di capitale: profitti al lordo, perdite non deducibili).
 - **F24, sezione Erario:**
 
   | Codice | Uso | Fonte |

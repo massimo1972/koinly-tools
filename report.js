@@ -1,6 +1,7 @@
 /* Koinly Tools · Copyright (C) 2026 Massimo Esposito · licenza GNU AGPL-3.0 (file LICENSE) */
 /* Koinly Tools · lettura degli altri report Koinly in CSV (Income, Expenses, Gifts/Donations/Lost assets, Other gains).
-   Danno solo informazioni in più e riscontri: non cambiano i calcoli delle altre schede.
+   Dal 2023 i proventi dell'Income report entrano nel quadro RT delle cripto (escludibili per anno); il netto dell'Other gains
+   si riporta, a scelta dello studio, nel quadro RT al 26% o nel quadro RM degli altri redditi. Gli altri report sono riepiloghi e riscontri.
    I report possono essere in italiano o in inglese e con numeri in formato 1,234.56 oppure 1.234,56. */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) module.exports = factory();
@@ -104,5 +105,29 @@
     return r;
   }
 
-  return { leggi: leggi, decimale: decimale, centesimi: centesimi, TIPI: TIPI };
+  /* righe dei report di un tipo con data nell'anno; null se nessun report di quel tipo copre l'anno */
+  function righeAnno(reports, tipo, anno) {
+    var el = (reports || []).filter(function (r) { return r.tipo === tipo && (r.anno === anno || r.righe.some(function (x) { return +x.data.slice(0, 4) === anno; })); });
+    if (!el.length) return null;
+    var righe = [];
+    el.forEach(function (r) { r.righe.forEach(function (x) { if (+x.data.slice(0, 4) === anno) righe.push(x); }); });
+    return righe;
+  }
+  /* proventi da detenzione dell'anno (staking, reward, airdrop, interessi...) dall'Income report: corrispettivo del quadro RT a costo zero */
+  function proventiAnno(reports, anno) {
+    var righe = righeAnno(reports, "redditi", anno);
+    if (!righe) return null;
+    var c = righe.reduce(function (s, x) { return s + (x.valoreCent > 0 ? x.valoreCent : 0); }, 0);
+    return { totale: c / 100, n: righe.filter(function (x) { return x.valoreCent > 0; }).length };
+  }
+  /* profitti e perdite dell'anno dall'Other gains report */
+  function altriAnno(reports, anno) {
+    var righe = righeAnno(reports, "altri", anno);
+    if (!righe) return null;
+    var pro = 0, per = 0;
+    righe.forEach(function (x) { if (x.valoreCent >= 0) pro += x.valoreCent; else per -= x.valoreCent; });
+    return { profitti: pro / 100, perdite: per / 100, netto: (pro - per) / 100, n: righe.length };
+  }
+
+  return { leggi: leggi, decimale: decimale, centesimi: centesimi, proventiAnno: proventiAnno, altriAnno: altriAnno, TIPI: TIPI };
 });

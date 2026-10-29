@@ -51,4 +51,14 @@ t("Valori in valuta diversa dall'euro: avviso", () => {
   const r = R.leggi('Income report 2024\n\nDate,Asset,Amount,Value (USD),Type,Description,Wallet Name\n2024-05-01 10:00,BTC,"0.001","60.00",Reward,,W\n');
   assert.equal(r.valuta, "USD"); assert.ok(r.avvisi[0].indexOf("USD") >= 0);
 });
+t("Proventi e Other gains per anno: solo le righe dell'anno, null se nessun report copre l'anno", () => {
+  const inc = R.leggi(INCOME_IT), og = R.leggi(OTHER_EN);
+  assert.deepEqual(R.proventiAnno([inc, og], 2025), { totale: 1231.21, n: 2 }); // la riga a valore zero non conta
+  assert.equal(R.proventiAnno([inc], 2024), null);
+  assert.equal(R.proventiAnno([og], 2025), null);
+  const vuoto = R.leggi('Income report 2024\n\nDate,Asset,Amount,Value (EUR),Type,Description,Wallet Name\n');
+  assert.deepEqual(R.proventiAnno([vuoto], 2024), { totale: 0, n: 0 }); // report caricato ma senza redditi: zero, non assente
+  assert.deepEqual(R.altriAnno([inc, og], 2025), { profitti: 80.12, perdite: 1190.1, netto: -1109.98, n: 3 });
+  assert.equal(R.altriAnno([og], 2023), null);
+});
 console.log(n + " prove superate");

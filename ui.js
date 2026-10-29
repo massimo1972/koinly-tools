@@ -167,7 +167,7 @@
       slot("inizio", "Saldi a inizio anno", true, "«Beginning of year holdings» in CSV (Koinly › Tax reports), uno per ogni anno da esaminare, anche più file insieme. Quantità e valori al 1° gennaio; il report di fine dell'anno precedente vale come saldo iniziale. Serve ai giorni di detenzione e all'IVACA (fino a 5 anni prima dell'ultimo) e dà i prezzi Koinly al questionario dell'Agenzia, per tutti gli anni richiesti.", ".csv,.pdf") +
       slot("fine", "Saldi a fine anno", true, "«End of year holdings» in CSV o «Complete tax report» in PDF, uno per ogni anno da esaminare (anche più file insieme): quantità e valori al 31/12, per il riscontro e il valore finale del quadro RW e per i prezzi del questionario dell'Agenzia.", ".csv,.pdf") +
       slotKoinlyCes() +
-      riquadro("Altri report Koinly", "Facoltativo", "CSV di «Income report», «Expenses report», «Gifts, donations &amp; lost assets» e «Other gains report» (Koinly › Tax reports), anche più file e più anni insieme. Danno informazioni in più (redditi, commissioni, perdite, derivati) e non cambiano i calcoli: i riepiloghi sono nella scheda «Quadri RW, RT e F24».",
+      riquadro("Altri report Koinly", "Facoltativo", "CSV di «Income report», «Expenses report», «Gifts, donations &amp; lost assets» e «Other gains report» (Koinly › Tax reports), anche più file e più anni insieme. Dal 2023 i proventi dell'Income report (staking, reward, airdrop, interessi) entrano nel quadro RT delle cripto; l'Other gains (derivati) si riporta a scelta nel quadro RT al 26% o nel quadro RM. Commissioni, regali e perdite sono informazioni in più. I riepiloghi sono nella scheda «Quadri RW, RT e F24».",
         '<input type="file" multiple accept=".csv,text/csv" data-kreport>', (S.reportErrore ? '<p class="stato" style="color:var(--hi)">' + esc(S.reportErrore) + "</p>" : "") + (S.report.length ? '<p class="stato">' + S.report.map(function (z) { return "<b>" + esc(z.nome) + "</b> · " + esc(z.r.titolo) + " " + (z.r.anno || "") + " · " + z.r.righe.length.toLocaleString("it-IT") + " righe, " + E(z.r.totale) + ' <button type="button" class="btnlink small" data-toglireport="' + esc(z.chiave) + '">togli</button>'; }).join("<br>") + "</p>" : ""), S.reportErrore, S.report.length) +
       "</div></div>";
     var et = S.etoro;
@@ -301,13 +301,26 @@
      Dai costi ricostruiti, dal 2023 si considerano le cessioni contro valuta e contro stablecoin (criterio dello studio). */
   function fonteRT(a) { return a.fonteRT || (S.tx ? "ricostruito" : "koinly"); }
   function rtAnno(a) {
+    var x;
     if (fonteRT(a) === "ricostruito" && S.tx) {
       var r = costiAnno(a.anno), t = a.anno >= 2023 ? r.totali.controValutaStable : r.totali.tutte;
-      return { corrispettivi: t.corrispettivi, costi: t.costi, fonte: "costi ricostruiti (LIFO globale)" };
-    }
-    return { corrispettivi: +a.corrispettivi || 0, costi: +a.costi || 0, fonte: fonteRT(a) === "koinly" ? "report Koinly" : "inseriti a mano" };
+      x = { corrispettivi: t.corrispettivi, costi: t.costi, fonte: "costi ricostruiti (LIFO globale)" };
+    } else x = { corrispettivi: +a.corrispettivi || 0, costi: +a.costi || 0, fonte: fonteRT(a) === "koinly" ? "report Koinly" : "inseriti a mano" };
+    var p = a.proventi === false ? null : proventiRT(a);
+    x.cessioni = x.corrispettivi; x.proventi = p ? p.totale : 0;
+    if (p) { x.corrispettivi += p.totale; x.fonte += " + proventi da " + p.fonte; }
+    return x;
   }
-  /* plusvalenze nette RT = corrispettivi delle vendite − costi di acquisto */
+  /* Proventi da detenzione (staking, reward, airdrop, interessi, cashback): dal 2023 sono redditi diversi dell'art. 67 c. 1 lett. c-sexies TUIR
+     al ricevimento e vanno nei corrispettivi del quadro RT delle cripto a costo zero (le cripto ricevute entrano con quel valore nei costi di carico).
+     Fonte: Income report in CSV della scheda «Caricamento file»; in mancanza, il riepilogo redditi del Complete tax report dell'anno. */
+  function proventiRT(a) {
+    if (a.anno < 2023) return null;
+    var p = KR.proventiAnno(S.report.map(function (z) { return z.r; }), a.anno);
+    if (p) return { totale: p.totale, fonte: "Income report" };
+    return a.redditi ? { totale: a.redditi, fonte: "Complete tax report" } : null;
+  }
+  /* plusvalenze nette RT = corrispettivi delle vendite (più i proventi dal 2023) − costi di acquisto */
   function plusvalenzeAnno(a) { var x = rtAnno(a); return Math.round(x.corrispettivi) - Math.round(x.costi); } // in euro, come nei righi del quadro RT
   function calcoliSanzioni() {
     return S.sanz.anni.map(function (a) {
@@ -357,10 +370,16 @@
           (S.tx ? '<option value="ricostruito"' + (fonteRT(a) === "ricostruito" ? " selected" : "") + ">Costi ricostruiti (LIFO globale, correzioni dello studio)</option>" : "") +
           '<option value="koinly"' + (fonteRT(a) === "koinly" ? " selected" : "") + '>Report Koinly</option><option value="mano"' + (fonteRT(a) === "mano" ? " selected" : "") + ">A mano</option></select>" +
           '<span class="small">' + (S.tx ? "I costi ricostruiti vengono dalle transazioni caricate nella prima scheda e dalle correzioni della scheda «Costi di carico»." : "Caricate le transazioni nella prima scheda per usare i costi ricostruiti.") + "</span></label>" +
-        (fonteRT(a) === "ricostruito" && S.tx ? (function () { var x = rtAnno(a); return '<div class="f"><span class="t">RT · corrispettivi e costi ricostruiti</span><div class="small">Corrispettivi ' + E(x.corrispettivi) + " · costi " + E(x.costi) + (a.fonte.corrispettivi === "report" ? '<br><span class="muted">Koinly: corrispettivi ' + E(+a.corrispettivi || 0) + " · costi " + E(+a.costi || 0) + "</span>" : "") + "</div></div>"; })() :
+        (fonteRT(a) === "ricostruito" && S.tx ? (function () { var x = rtAnno(a); return '<div class="f"><span class="t">RT · corrispettivi e costi ricostruiti</span><div class="small">Corrispettivi delle cessioni ' + E(x.cessioni) + " · costi " + E(x.costi) + (a.fonte.corrispettivi === "report" ? '<br><span class="muted">Koinly: corrispettivi ' + E(+a.corrispettivi || 0) + " · costi " + E(+a.costi || 0) + "</span>" : "") + "</div></div>"; })() :
           '<label class="f"><span class="t">RT · corrispettivi delle vendite <span class="muted small">(€)</span></span><input class="num" type="number" step="any" data-za="' + a.id + '" data-k="corrispettivi" value="' + esc(a.corrispettivi) + '"><span class="small">' + (a.fonte.corrispettivi === "report" ? "«Il ricavato delle vendite» del riepilogo plusvalenze Koinly." : "Corrispettivi delle cessioni dell'anno.") + "</span></label>" +
           '<label class="f"><span class="t">RT · costi di acquisto <span class="muted small">(€)</span></span><input class="num" type="number" step="any" data-za="' + a.id + '" data-k="costi" value="' + esc(a.costi) + '"><span class="small">' + (a.fonte.costi === "report" ? "«Costi di acquisizione» del riepilogo plusvalenze Koinly (commissioni comprese)." : "Costi delle cripto cedute.") + "</span></label>") +
-        '<div class="f"><span class="t">Plusvalenze nette RT <span class="muted small">(€)</span></span><div class="v" style="font:600 1.1rem var(--f-mono)">' + E(plusvalenzeAnno(a)) + '</div><span class="small">Corrispettivi delle vendite − costi di acquisto · fonte: ' + esc(rtAnno(a).fonte) + "." + (a.redditi ? " Il report indica anche " + E(a.redditi) + " di altri redditi (interessi, reward, airdrop) non compresi: valutarne la qualificazione." : "") + "</span></div>" +
+        (function () {
+          var p = proventiRT(a);
+          if (p) return '<label class="f"><span class="t">RT · proventi da detenzione <span class="muted small">(€)</span></span><span class="small"><input type="checkbox" data-zprov="' + a.id + '"' + (a.proventi === false ? "" : " checked") + "> Compresi nei corrispettivi, a costo zero: <b>" + E(p.totale) + "</b> di staking, reward, airdrop e interessi " + (p.fonte === "Income report" ? "dall'" : "dal ") + esc(p.fonte) + " " + a.anno + " (art. 67 c. 1 lett. c-sexies TUIR). Togliete la spunta per escluderli.</span></label>";
+          if (a.anno >= 2023) return '<div class="f"><span class="t">RT · proventi da detenzione</span><span class="small">Caricate l\'«Income report» ' + a.anno + " nella scheda «Caricamento file» (o il Complete tax report dell'anno): staking, reward, airdrop e interessi entrano nei corrispettivi a costo zero.</span></div>";
+          return a.redditi ? '<div class="f"><span class="t">Altri redditi del report</span><span class="small">Il report indica anche ' + E(a.redditi) + " di interessi, reward e airdrop: fino al 2022 non rientrano nel quadro RT delle cripto, valutarne la qualificazione.</span></div>" : "";
+        })() +
+        '<div class="f"><span class="t">Plusvalenze nette RT <span class="muted small">(€)</span></span><div class="v" style="font:600 1.1rem var(--f-mono)">' + E(plusvalenzeAnno(a)) + '</div><span class="small">Corrispettivi delle vendite' + (rtAnno(a).proventi ? " + proventi" : "") + " − costi di acquisto · fonte: " + esc(rtAnno(a).fonte) + ".</span></div>" +
         "</div>" + (a.avvisi && a.avvisi.length ? '<p class="small" style="color:var(--mid)">' + a.avvisi.map(esc).join("<br>") + "</p>" : "") +
         '<div class="scroll" style="margin-top:10px">' + tabellaAnno(r) + "</div></div>";
     }).join("");
@@ -378,7 +397,7 @@
       '<table class="dati"><tr><td>Data del ravvedimento</td><td>' + D.it(S.sanz.pagamento) + "</td></tr><tr><td>Anni</td><td>" + calc.map(function (r) { return r.anno + (r.ravvedibile ? "" : " (dichiarazione omessa)"); }).join(", ") + "</td></tr></table>" +
       calc.map(function (r) {
         var a = r.dati;
-        return "<h2>Anno " + r.anno + "</h2><p>Dichiarazione: " + (a.stato === "omessa" ? "omessa" : "presentata senza quadri RW e RT") + (a.nome ? " · Report Koinly: " + esc(a.nome) : "") + " · Valore finale RW: " + E(+a.valoreRw || 0) + " · IVACA: " + E(r.anno < 2023 ? 0 : +a.ivaca || 0) + " · RT: corrispettivi " + E(+a.corrispettivi || 0) + " − costi " + E(+a.costi || 0) + " = plusvalenze " + E(plusvalenzeAnno(a)) + "</p>" + tabellaAnno(r);
+        return "<h2>Anno " + r.anno + "</h2><p>Dichiarazione: " + (a.stato === "omessa" ? "omessa" : "presentata senza quadri RW e RT") + (a.nome ? " · Report Koinly: " + esc(a.nome) : "") + " · Valore finale RW: " + E(+a.valoreRw || 0) + " · IVACA: " + E(r.anno < 2023 ? 0 : +a.ivaca || 0) + " · RT: " + (function () { var x = rtAnno(a); return "corrispettivi " + E(x.corrispettivi) + (x.proventi ? " (di cui proventi da detenzione " + E(x.proventi) + ")" : "") + " − costi " + E(x.costi); })() + " = plusvalenze " + E(plusvalenzeAnno(a)) + "</p>" + tabellaAnno(r);
       }).join("") +
       "<h2>Riepilogo</h2><table class=\"det\"><thead><tr><th>Anno</th><th class=\"n\">Imposte</th><th class=\"n\">Sanzioni</th><th class=\"n\">Interessi</th><th class=\"n\">Totale</th></tr></thead><tbody>" +
       calc.map(function (r) { return "<tr><td>" + r.anno + (r.ravvedibile ? "" : " (omessa: sanzioni a 1/3, indicativo)") + '</td><td class="n">' + E(r.imposte) + '</td><td class="n">' + E(r.sanzioni) + '</td><td class="n">' + E(r.interessi) + '</td><td class="n">' + E(r.totale) + "</td></tr>" +
@@ -979,26 +998,45 @@
     render();
   }
   var NOTE_REPORT = {
-    redditi: "Ricompense di staking, airdrop, interessi, cashback e simili, al valore del giorno in cui sono state ricevute.",
-    altri: "Profitti e perdite che Koinly tiene fuori dalle plusvalenze ordinarie: di solito derivati, futures e margin. La qualificazione fiscale va valutata dallo studio.",
+    redditi: "Ricompense di staking, airdrop, interessi, cashback e simili, al valore del giorno in cui sono state ricevute. Dal 2023 entrano nei corrispettivi del quadro RT delle cripto, a costo zero (escludibili anno per anno nella scheda Sanzioni).",
+    altri: "Profitti e perdite che Koinly tiene fuori dalle plusvalenze ordinarie: di solito derivati, futures e margin. Lo studio sceglie dove riportarli, secondo il tipo di reddito: quadro RT al 26% (redditi diversi, logica dei derivati) o quadro RM (redditi di capitale).",
     perdite: "Cripto regalate, donate, perse o rubate: per le perdite servono documenti (denunce, comunicazioni dell'exchange).",
     commissioni: "Commissioni e costi pagati in cripto (commissioni di rete, transazioni fallite)."
   };
   function pannelloReport() {
     if (!S.report.length) return "";
-    var h = '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Altri report Koinly · informazioni</h3><p class="small">Riepiloghi dei report caricati nella scheda «Caricamento file». Sono informazioni in più e riscontri: <b>non cambiano</b> il quadro RW, il quadro RT né le sanzioni.</p>';
+    var h = '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Altri report Koinly · informazioni</h3><p class="small">Riepiloghi dei report caricati nella scheda «Caricamento file». Dal 2023 i proventi dell\'Income report entrano nel quadro RT delle cripto; l\'Other gains si riporta con i pulsanti nel quadro RT al 26% o nel quadro RM degli altri redditi. Commissioni, regali e perdite restano informazioni e riscontri.</p>';
     S.report.forEach(function (z) {
       var r = z.r, altri = r.tipo === "altri";
       h += '<h4 style="margin:18px 0 4px">' + esc(r.titolo) + (r.anno ? " · " + r.anno : "") + "</h4>" + '<p class="small muted" style="margin:0 0 6px;overflow-wrap:anywhere">' + esc(NOTE_REPORT[r.tipo]) + " File: " + esc(z.nome) + ".</p>";
       if (!r.righe.length) { h += "<p>Nessuna riga nel report: per l'anno Koinly non registra operazioni di questo tipo.</p>"; return; }
       h += "<p><b>" + r.righe.length.toLocaleString("it-IT") + " righe</b> · " + (altri ? "profitti " + E(r.profitti) + " · perdite " + E(r.perdite) + " · <b>netto " + E(r.totale) + "</b>" : "totale <b>" + E(r.totale) + "</b>") + "</p>";
       if (r.avvisi.length) h += '<p class="small" style="color:var(--mid)">' + r.avvisi.map(esc).join("<br>") + "</p>";
+      if (altri) h += riportoOtherGains(r);
       var righe = function (l) { return l.slice(0, 10).map(function (x) { return altri ? [esc(x.chiave), x.n.toLocaleString("it-IT"), E(x.profitti), E(x.perdite), E(x.valore)] : [esc(x.chiave), x.n.toLocaleString("it-IT"), E(x.valore)]; }); };
       var resto = function (l) { return l.length > 10 ? '<p class="small">Le prime 10 voci su ' + l.length + ", per valore.</p>" : ""; };
       var intest = function (t) { return altri ? [t, "n:Righe", "n:Profitti", "n:Perdite", "n:Netto"] : [t, "n:Righe", "n:Valore"]; };
       h += '<div class="' + (altri ? "" : "grid2") + '">' + (altri ? "" : "<div>" + tab(intest("Tipo"), righe(r.perTipo)) + resto(r.perTipo) + "</div>") + "<div>" + tab(intest("Cripto"), righe(r.perAttivo)) + resto(r.perAttivo) + "</div>" + "<div>" + tab(intest("Wallet o exchange"), righe(r.perWallet)) + resto(r.perWallet) + "</div>" + (altri ? "<div>" + tab(intest("Mese"), r.perMese.map(function (x) { return [x.chiave.slice(5) + "/" + x.chiave.slice(0, 4), x.n.toLocaleString("it-IT"), E(x.profitti), E(x.perdite), E(x.valore)]; })) + "</div>" : "") + "</div>";
     });
     return h + "</div>";
+  }
+  /* Other gains: lo studio sceglie per anno se riportarlo nel quadro RT al 26% (profitti come corrispettivi, perdite come costi)
+     o nel quadro RM come redditi di capitale (solo i profitti, al lordo: le perdite non si deducono) */
+  var FONTE_OG = "Koinly Other gains";
+  function annoReport(r) { return r.anno || (r.righe[0] ? +r.righe[0].data.slice(0, 4) : null); }
+  function riportoOtherGains(r) {
+    var anno = annoReport(r); if (!anno) return "";
+    var gia = S.altri.filter(function (x) { return x.fonte === FONTE_OG && x.anno === anno; })[0];
+    var stato = gia ? (gia.lordo !== "" ? "riportato nel quadro RM (redditi di capitale)" : "riportato nel quadro RT al 26% (redditi diversi)") : "non riportato nei quadri";
+    var b = function (dove, testo) { return '<button type="button" class="btn ghost" data-riportaog="' + anno + '" data-dove="' + dove + '">' + testo + "</button>"; };
+    return '<div class="toolbar" style="margin:4px 0 8px">' + b("rt", "Riporta nel quadro RT al 26%") + b("rm", "Riporta nel quadro RM") + (gia ? b("no", "Togli dai quadri") : "") + '</div><p class="small" style="margin:0 0 6px">Anno ' + anno + ": <b>" + stato + "</b>. Il riporto va nella tabella «Quadri RT e RM · altri redditi» qui sotto, dove si può modificare (per il quadro RM indicate il codice Stato).</p>";
+  }
+  function riportaOtherGains(anno, dove) {
+    S.altri = S.altri.filter(function (x) { return !(x.fonte === FONTE_OG && x.anno === anno); });
+    var o = KR.altriAnno(S.report.map(function (z) { return z.r; }), anno);
+    if (!o || dove === "no") return;
+    if (dove === "rt") S.altri.push({ id: altroId++, anno: anno, fonte: FONTE_OG, corr: o.profitti, costi: o.perdite, minus: "", lettera: "I", stato: "", lordo: "" });
+    else S.altri.push({ id: altroId++, anno: anno, fonte: FONTE_OG, corr: "", costi: "", minus: "", lettera: "I", stato: "", lordo: o.profitti });
   }
   /* quadri RT (sezione al 26%) e RM degli altri redditi, raggruppati per anno */
   function quadriAltri() {
@@ -1041,6 +1079,7 @@
     return "<h4>Anno " + a.anno + " · " + esc(q.modello) + ' · <span class="u">fonte: ' + esc(x.fonte) + "</span></h4>" + '<table class="det" style="width:auto;min-width:60%"><thead><tr><th>Rigo</th><th>Col.</th><th>Descrizione</th><th class="n">Importo</th></tr></thead><tbody>' +
       q.righi.map(function (x) { return "<tr><td>" + x.rigo + "</td><td>" + (x.col || "") + "</td><td>" + esc(x.descrizione) + '</td><td class="n">' + E(x.valore, 0) + "</td></tr>"; }).join("") +
       "</tbody></table>" + (q.minusvalenzaDaRiportare ? '<p class="small">Minusvalenza da riportare negli anni successivi (fino al quarto): ' + E(q.minusvalenzaDaRiportare, 0) + ", rigo " + q.rigoMinus + ".</p>" : "") +
+      (x.proventi ? '<p class="small">Corrispettivi: cessioni ' + E(x.cessioni) + " + proventi da detenzione " + E(x.proventi) + " (staking, reward, airdrop, interessi; costo zero).</p>" : "") +
       '<p class="small">Importi in unità di euro. Minusvalenze di anni precedenti ed eccedenze d\'imposta non indicate: aggiungerle se esistono. Dati Koinly non rettificati.</p>';
   }
   function tabellaF24(f) {
@@ -1272,6 +1311,7 @@
     if (t.matches("[data-mod]")) { S.modelli[t.getAttribute("data-mod")] = +t.value; render(); return; }
     if (t.matches("[data-sz]")) { S.sanz[t.getAttribute("data-sz")] = t.value || oggiIso; render(); return; }
     if (t.matches("[data-zfile]") && t.files[0]) { caricaReportAnno(+t.getAttribute("data-zfile"), t.files[0]); return; }
+    if (t.matches("[data-zprov]")) { var zp = S.sanz.anni.filter(function (x) { return x.id === +t.getAttribute("data-zprov"); })[0]; if (zp) zp.proventi = t.checked; render(); return; }
     if (t.matches("[data-za]")) {
       var za = S.sanz.anni.filter(function (x) { return x.id === +t.getAttribute("data-za"); })[0], zk = t.getAttribute("data-k");
       za[zk] = zk === "anno" ? +t.value : zk === "stato" || zk === "fonteRT" ? t.value : t.value === "" ? "" : +t.value; if (zk !== "anno" && zk !== "stato" && zk !== "fonteRT") za.fonte[zk] = "mano";
@@ -1297,6 +1337,7 @@
     else if (t.id === "togliEtoro") { S.etoro = null; S.etoroErrore = null; render(); }
     else if (t.id === "togliKoinlyCes") { S.koinlyCes = null; S.koinlyCesErrore = null; render(); }
     else if (t.id === "richiestaCliente") stampaRichiesta();
+    else if (t.matches("[data-riportaog]")) { riportaOtherGains(+t.getAttribute("data-riportaog"), t.getAttribute("data-dove")); render(); }
     else if (t.matches("[data-toglireport]")) { var kr = t.getAttribute("data-toglireport"); S.report = S.report.filter(function (z) { return z.chiave !== kr; }); render(); }
     else if (t.id === "svuotaBanca") { S.banca = { movimenti: [], lette: 0, scartate: 0, file: 0 }; render(); }
     else if (t.id === "excelCosti") excelCosti();
