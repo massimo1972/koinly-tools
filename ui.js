@@ -158,17 +158,15 @@
     return '<div class="slot' + (err ? " err" : ok ? " ok" : "") + '"><span class="req">' + obbl + "</span><h3>" + titolo + '</h3><p class="small muted" style="margin:0">' + testo + "</p>" + campo + (stato || "") + "</div>";
   }
   function viewCaricamento() {
-    var B = S.banca, Q = S.quest;
+    var B = S.banca;
     var h = '<h2>Caricamento file</h2><p class="lead">Qui si caricano tutti i file della pratica. Per ciascuno è indicato che cosa contiene, dove si scarica e in quale scheda si usa. Le transazioni e i saldi di Koinly sono indispensabili; gli altri file aggiungono riscontri e quadri.</p>' +
       '<div class="banner beta-avviso"><strong>Versione beta</strong><p>Koinly Tools è in fase di test: i risultati vanno verificati con lo studio prima di usarli per la dichiarazione o per qualsiasi versamento. Segnalazioni e suggerimenti sono benvenuti.</p></div>' +
       '<div class="banner"><strong>Riservatezza</strong><p>I file restano in questo browser: non vengono salvati né inviati in rete. Non sapete quali file caricare? <button type="button" class="btnlink" data-tab="0">Leggete la guida</button>.</p></div>';
     h += '<div class="panel"><h3 style="margin-top:0">Koinly</h3><div class="slots">' +
       slot("tx", "Transazioni", true, "CSV con tutte le transazioni di tutti gli anni, dal primo acquisto: «backup_transactions_koinly.csv» (Koinly › Transactions › esporta) oppure «transaction history». Serve a tutte le schede: periodi di detenzione, costi di carico, questionario.", ".csv,text/csv") +
-      slot("inizio", "Saldi a inizio anno", true, "«Beginning of year holdings» in CSV (Koinly › Tax reports), uno per ogni anno da esaminare: si possono caricare più file insieme, fino a 5 anni prima dell'ultimo. Quantità e valori al 1° gennaio; il report di fine dell'anno precedente vale come saldo iniziale. Serve ai giorni di detenzione e all'IVACA.", ".csv,.pdf") +
-      slot("fine", "Saldi a fine anno", true, "«End of year holdings» in CSV o «Complete tax report» in PDF, uno per ogni anno da esaminare (anche più file insieme): quantità e valori al 31/12, per il riscontro e il valore finale del quadro RW.", ".csv,.pdf") +
+      slot("inizio", "Saldi a inizio anno", true, "«Beginning of year holdings» in CSV (Koinly › Tax reports), uno per ogni anno da esaminare, anche più file insieme. Quantità e valori al 1° gennaio; il report di fine dell'anno precedente vale come saldo iniziale. Serve ai giorni di detenzione e all'IVACA (fino a 5 anni prima dell'ultimo) e dà i prezzi Koinly al questionario dell'Agenzia, per tutti gli anni richiesti.", ".csv,.pdf") +
+      slot("fine", "Saldi a fine anno", true, "«End of year holdings» in CSV o «Complete tax report» in PDF, uno per ogni anno da esaminare (anche più file insieme): quantità e valori al 31/12, per il riscontro e il valore finale del quadro RW e per i prezzi del questionario dell'Agenzia.", ".csv,.pdf") +
       slotKoinlyCes() +
-      riquadro("Report dei saldi per il questionario", "Facoltativo", "Report di inizio e fine anno o Complete tax report degli anni richiesti dall'Agenzia (più file insieme): danno i prezzi Koinly alle date chieste nel questionario.",
-        '<input type="file" multiple accept=".csv,.pdf" data-qrep>', Q.nomiReport.length ? '<p class="stato">' + esc(Q.nomiReport.join("; ")) + "</p>" : "", false, Q.nomiReport.length) +
       riquadro("Altri report Koinly", "Facoltativo", "CSV di «Income report», «Expenses report», «Gifts, donations &amp; lost assets» e «Other gains report» (Koinly › Tax reports), anche più file e più anni insieme. Danno informazioni in più (redditi, commissioni, perdite, derivati) e non cambiano i calcoli: i riepiloghi sono nella scheda «Quadri RW, RT e F24».",
         '<input type="file" multiple accept=".csv,text/csv" data-kreport>', (S.reportErrore ? '<p class="stato" style="color:var(--hi)">' + esc(S.reportErrore) + "</p>" : "") + (S.report.length ? '<p class="stato">' + S.report.map(function (z) { return "<b>" + esc(z.nome) + "</b> · " + esc(z.r.titolo) + " " + (z.r.anno || "") + " · " + z.r.righe.length.toLocaleString("it-IT") + " righe, " + E(z.r.totale) + ' <button type="button" class="btnlink small" data-toglireport="' + esc(z.chiave) + '">togli</button>'; }).join("<br>") + "</p>" : ""), S.reportErrore, S.report.length) +
       "</div></div>";
@@ -411,9 +409,9 @@
   }
   function anniCosti() { var a = {}; if (S.tx) S.tx.dati.movimenti.forEach(function (t) { a[new Date(t.ts).getUTCFullYear()] = true; }); return Object.keys(a).map(Number).sort(); }
   function confrontoCosti(r, anno) {
-    // saldi Koinly per il confronto: dalla prima scheda o dai report caricati nel questionario (fine dell'anno precedente = inizio)
-    var ini = saldiInizioAnno(anno) ? saldiInizioAnno(anno).r.saldi : S.quest.saldiReport[anno + "-01-01"] || S.quest.saldiReport[(anno - 1) + "-12-31"] || null;
-    var fin = saldiFineAnno(anno) ? saldiFineAnno(anno).r.saldi : S.quest.saldiReport[anno + "-12-31"] || null;
+    // saldi Koinly per il confronto, dalla scheda Caricamento file (fine dell'anno precedente = inizio)
+    var ini = saldiInizioAnno(anno) ? saldiInizioAnno(anno).r.saldi : null;
+    var fin = saldiFineAnno(anno) ? saldiFineAnno(anno).r.saldi : null;
     if (ini || fin) C.confronta(r, ini, fin);
     return r;
   }
@@ -595,7 +593,7 @@
   }
 
   /* ---------- questionario dell'Agenzia delle Entrate e dichiarazione sui wallet ---------- */
-  S.quest = { anni: [], saldiReport: {}, reportCompleti: {}, nomiReport: [], flag: {}, chiavi: {}, cliente: { nome: "", cf: "", nascita: "", residenza: "" } };
+  S.quest = { anni: [], flag: {}, chiavi: {}, cliente: { nome: "", cf: "", nascita: "", residenza: "" } };
   var DOMANDE = [
     "Modalità di acquisto delle cripto-attività, con dettaglio degli intermediari utilizzati",
     "Copia della movimentazione bancaria dei conti utilizzati",
@@ -606,26 +604,28 @@
     "Operazioni di trasferimento di cripto-attività verso terzi",
     "Rilevanza o irrilevanza reddituale in Italia, con le ragioni"
   ];
-  async function caricaReportQuest(files) {
-    for (var i = 0; i < files.length; i++) {
-      var f = files[i];
-      try {
-        var r = /\.pdf$/i.test(f.name) ? L.leggiPdf(await testoPdf(f)) : L.leggiCsv(await f.text());
-        if (r.errore || !r.anno) continue;
-        var k = r.tipoSaldi === "inizio" ? r.anno + "-01-01" : r.anno + "-12-31";
-        S.quest.saldiReport[k] = r.saldi; S.quest.reportCompleti[k] = r; S.quest.nomiReport.push(f.name + " → saldi al " + D.it(k));
-      } catch (e) { S.quest.nomiReport.push(f.name + ": non leggibile"); }
-    }
-    render();
+  /* saldi Koinly per data ("2024-12-31": saldi), dai report caricati negli spazi dei saldi di inizio e fine anno;
+     il report di fine dell'anno precedente vale come saldo al 1° gennaio */
+  function saldiReport() {
+    var m = {}; S.saldiFile.forEach(function (z) { m[z.data] = z.r.saldi; });
+    S.saldiFile.forEach(function (z) { var a = +z.data.slice(0, 4) + 1; if (z.data.slice(5) === "12-31" && !m[a + "-01-01"]) m[a + "-01-01"] = z.r.saldi; });
+    return m;
   }
+  function reportFine(anno) { var z = S.saldiFile.filter(function (x) { return x.data === anno + "-12-31"; })[0]; return z ? z.r : null; }
   var cacheQ = null;
   function calcolaQuest() {
     if (!S.tx || !S.quest.anni.length) return null;
-    var k = JSON.stringify([S.quest.anni, S.fuso, S.correzioni, Object.keys(S.quest.saldiReport), swapDal()]);
+    var k = JSON.stringify([S.quest.anni, S.fuso, S.correzioni, S.saldiFile.map(function (z) { return z.data + z.nome; }), swapDal()]);
     if (cacheQ && cacheQ.k === k) return cacheQ.q;
     var iv = {}; if (ivaca) iv[S.anno] = ivaca.totali.ivaca;
-    var q = QZ.calcola(S.tx.dati, { anni: S.quest.anni, fuso: S.fuso, correzioni: S.correzioni, swapNeutriDal: swapDal(), saldiReport: S.quest.saldiReport, ivaca: iv });
+    var q = QZ.calcola(S.tx.dati, { anni: S.quest.anni, fuso: S.fuso, correzioni: S.correzioni, swapNeutriDal: swapDal(), saldiReport: saldiReport(), ivaca: iv });
     cacheQ = { k: k, q: q }; return q;
+  }
+  /* saldi disponibili per gli anni scelti: per ogni anno servono i prezzi al 1° gennaio (o al 31/12 precedente) e al 31/12 */
+  function saldiQuest() {
+    var m = saldiReport(), date = S.saldiFile.map(function (z) { return z.data; });
+    var manca = []; S.quest.anni.forEach(function (a) { if (!m[a + "-01-01"]) manca.push("1/1/" + a); if (!m[a + "-12-31"]) manca.push("31/12/" + a); });
+    return (date.length ? "Saldi al " + date.map(D.it).join(", ") + "." : "Nessun report dei saldi caricato.") + (manca.length ? ' <span style="color:var(--hi)">Mancano i saldi al ' + manca.join(", ") + ": senza, i prezzi a quelle date non sono quelli di Koinly.</span>" : "");
   }
   function attribuzione(c) { return S.quest.flag[c.id] || c.proposta; }
   /* indirizzi e chiavi pubbliche di un wallet: quelli inseriti dallo studio, poi quelli completi letti dal file Koinly */
@@ -692,7 +692,7 @@
     if (!S.tx) return h + '<p class="muted">Caricate il file delle transazioni nella scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>.</p>';
     var anni = anniCosti().filter(function (a) { return a >= 2017; });
     h += '<div class="panel"><div class="grid2"><div class="f"><span class="t">Anni richiesti dall\'Agenzia</span><div class="row">' + anni.map(function (a) { return '<label class="toggle"><input type="checkbox" data-qanno="' + a + '"' + (S.quest.anni.indexOf(a) >= 0 ? " checked" : "") + "><span>" + a + "</span></label>"; }).join("") + "</div></div>" +
-      '<div class="f"><span class="t">Report Koinly dei saldi</span><span class="small">' + (S.quest.nomiReport.length ? esc(S.quest.nomiReport.join("; ")) : "Nessuno: i prezzi alle date richieste si caricano con i report di inizio e fine anno") + ' (scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>).</span></div></div></div>';
+      '<div class="f"><span class="t">Report Koinly dei saldi</span><span class="small">' + saldiQuest() + ' Si caricano negli spazi dei saldi di inizio e fine anno (scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>).</span></div></div></div>';
     var q = calcolaQuest();
     if (!q) return h + '<p class="muted" style="margin-top:14px">Scegliete gli anni richiesti dall\'Agenzia.</p>';
     var miei = q.d3.chiavi.filter(function (c) { return attribuzione(c) === "mio"; }).length, chiarire = q.d3.chiavi.filter(function (c) { return attribuzione(c) === "da chiarire"; }).length;
@@ -779,7 +779,7 @@
     if (x && x.koinly.n) return { corrispettivi: x.koinly.ricavo, costi: x.koinly.costo, nome: S.koinlyCes.nome, cessioni: true };
     var a = S.sanz.anni.filter(function (x) { return x.anno === anno && x.fonte.corrispettivi === "report"; })[0];
     if (a) return { corrispettivi: +a.corrispettivi || 0, costi: +a.costi || 0, nome: a.nome };
-    var r = S.quest.reportCompleti[anno + "-12-31"];
+    var r = reportFine(anno);
     return r && r.plusvalenze && r.plusvalenze.ricavato != null ? { corrispettivi: r.plusvalenze.ricavato, costi: r.plusvalenze.costi || 0, nome: "" } : null;
   }
   /* Memoria tecnica: un solo contenuto a blocchi (vedi docx-mini.js), stampato in HTML o scaricato in Word */
@@ -1263,7 +1263,6 @@
     if (t.matches("[data-et]")) { S.etoroAnno = +t.value; render(); return; }
     if (t.matches("[data-qanno]")) { var qa = +t.getAttribute("data-qanno"); S.quest.anni = S.quest.anni.filter(function (x) { return x !== qa; }); if (t.checked) S.quest.anni.push(qa); S.quest.anni.sort(); render(); return; }
     if (t.matches("[data-kreport]") && t.files.length) { caricaReportKoinly(t.files); return; }
-    if (t.matches("[data-qrep]") && t.files.length) { caricaReportQuest(t.files); return; }
     if (t.matches("[data-chiave]")) { S.quest.chiavi[t.getAttribute("data-chiave")] = t.value.trim(); render(); return; }
     if (t.matches("[data-flag]")) { S.quest.flag[t.getAttribute("data-flag")] = t.value; render(); return; }
     if (t.matches("[data-cliente]")) { S.quest.cliente[t.getAttribute("data-cliente")] = t.value.trim(); return; }
