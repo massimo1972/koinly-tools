@@ -2,13 +2,13 @@
 /* Koinly Tools · interfaccia. I file caricati restano nel browser: non vengono salvati né inviati in rete. */
 (function () {
   "use strict";
-  var L = window.KoinlyLettura, D = window.KoinlyDetenzione, I = window.KoinlyIvaca, Z = window.KoinlySanzioni, MOD = window.KoinlyModelli, C = window.KoinlyCosti, QZ = window.KoinlyQuestionario, BK = window.KoinlyBanca, ET = window.KoinlyEtoro, KX = window.KoinlyEstero, PV = window.KoinlyProvenienza, KR = window.KoinlyReport;
+  var L = window.KoinlyLettura, D = window.KoinlyDetenzione, I = window.KoinlyIvaca, Z = window.KoinlySanzioni, MOD = window.KoinlyModelli, C = window.KoinlyCosti, QZ = window.KoinlyQuestionario, BK = window.KoinlyBanca, ET = window.KoinlyEtoro, KX = window.KoinlyEstero, PV = window.KoinlyProvenienza, PR = window.KoinlyPratica, KR = window.KoinlyReport;
   if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = "comune/vendor/pdf.worker.min.js";
   var app = document.getElementById("app");
 
   // ordine delle schede scelto dallo studio, numerate da 0
-  var TABS = ["Guida", "Caricamento file", "Costi di carico (LIFO)", "Giorni di detenzione, IVACA e IVAFE", "Quadri RW, RT e F24", "Sanzioni RW, RT e RM", "Questionario AdE"];
-  var VISTE = ["guida", "caricamento", "costi", "ivaca", "modelli", "sanzioni", "questionario"];
+  var TABS = ["Guida", "Caricamento file", "Costi di carico (LIFO)", "Giorni di detenzione, IVACA e IVAFE", "Quadri RW, RT e F24", "Sanzioni RW, RT e RM", "Questionario AdE", "Pratica AdE"];
+  var VISTE = ["guida", "caricamento", "costi", "ivaca", "modelli", "sanzioni", "questionario", "pratica"];
   var S = { tab: 1, tx: null, inizio: null, fine: null, anno: null, fuso: "UTC", quota: 100, inclusi: {}, valori: {}, aperti: {}, spamAperti: false, errore: {}, saldiFile: [], report: [] };
   var calcolo = null, ivaca = null;
 
@@ -438,11 +438,11 @@
   };
   function scaricaFile(nome, blob) { var l = document.createElement("a"); l.href = URL.createObjectURL(blob); l.download = nome; document.body.appendChild(l); l.click(); setTimeout(function () { URL.revokeObjectURL(l.href); l.remove(); }, 1000); }
   function salvaLavoro() {
-    var dati = { programma: "Koinly Tools", versione: 1, salvato: new Date().toISOString(), transazioni: S.tx ? S.tx.nome : "", correzioni: S.correzioni, attribuzioni: S.quest.flag, chiaviWallet: S.quest.chiavi, memoria: S.memoria, cliente: S.quest.cliente, altriRedditi: S.altri, dichiarazioni: S.dich, altreFonti: S.fonti };
+    var dati = { programma: "Koinly Tools", versione: 1, salvato: new Date().toISOString(), transazioni: S.tx ? S.tx.nome : "", correzioni: S.correzioni, attribuzioni: S.quest.flag, chiaviWallet: S.quest.chiavi, memoria: S.memoria, cliente: S.quest.cliente, altriRedditi: S.altri, dichiarazioni: S.dich, altreFonti: S.fonti, atti: S.atti };
     scaricaFile("koinly-tools-lavoro.json", new Blob([JSON.stringify(dati, null, 1)], { type: "application/json" }));
   }
   async function caricaLavoro(f) {
-    try { var j = JSON.parse(await f.text()); S.correzioni = j.correzioni || {}; S.quest.flag = j.attribuzioni || {}; S.quest.chiavi = j.chiaviWallet || {}; if (j.memoria) S.memoria = Object.assign(S.memoria, j.memoria); S.quest.cliente = Object.assign(S.quest.cliente, j.cliente || {}); if (j.dichiarazioni) { S.dich = j.dichiarazioni; S.fonti = j.altreFonti || []; idProv = S.dich.concat(S.fonti).reduce(function (m, x) { return Math.max(m, x.id + 1); }, idProv); } if (j.altriRedditi) { S.altri = j.altriRedditi; altroId = S.altri.reduce(function (m, x) { return Math.max(m, x.id + 1); }, 1); } S.lavoroCaricato = f.name + (j.transazioni ? " (transazioni: " + j.transazioni + ")" : ""); }
+    try { var j = JSON.parse(await f.text()); S.correzioni = j.correzioni || {}; S.quest.flag = j.attribuzioni || {}; S.quest.chiavi = j.chiaviWallet || {}; if (j.memoria) S.memoria = Object.assign(S.memoria, j.memoria); S.quest.cliente = Object.assign(S.quest.cliente, j.cliente || {}); if (j.atti) { S.atti = j.atti; idAtto = S.atti.reduce(function (m, x) { return Math.max(m, x.id + 1); }, idAtto); } if (j.dichiarazioni) { S.dich = j.dichiarazioni; S.fonti = j.altreFonti || []; idProv = S.dich.concat(S.fonti).reduce(function (m, x) { return Math.max(m, x.id + 1); }, idProv); } if (j.altriRedditi) { S.altri = j.altriRedditi; altroId = S.altri.reduce(function (m, x) { return Math.max(m, x.id + 1); }, 1); } S.lavoroCaricato = f.name + (j.transazioni ? " (transazioni: " + j.transazioni + ")" : ""); }
     catch (e) { S.lavoroCaricato = "File non valido: " + e.message; }
     render();
   }
@@ -1309,11 +1309,132 @@
     return '<div class="toolbar noprint" style="justify-content:flex-end;margin-bottom:10px"><button type="button" class="btn gold" id="stampaGuida">Stampa / PDF della guida</button></div>' + (window.KoinlyGuida || "") + contattiStudio() +
       '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Codice aperto e donazioni</h3>' + donazioni() + "</div>";
   }
+  /* ---------- pratica con l'Agenzia delle Entrate: invito, schema di atto, atto impositivo ---------- */
+  S.atti = []; S.attiErrore = null;
+  var idAtto = 1;
+  async function caricaAtti(files) {
+    var errori = [];
+    for (var i = 0; i < files.length; i++) {
+      try {
+        var pagine = await testoPdf(files[i]), tipo = PR.tipoAtto(pagine.map(function (p) { return p.text; }).join("\n"));
+        if (tipo !== "schema") throw new Error(tipo ? PR.NOMI_TIPO[tipo] + ": la lettura automatica arriverà con un campione; intanto si gestisce a mano nella sequenza della pratica." : "non sembra un atto dell'Agenzia delle Entrate.");
+        var d = PR.leggiSchema(pagine); if (d.errore) throw new Error(d.errore);
+        // nome e codice fiscale del contribuente: solo per proporre i dati del cliente, se mancano
+        if (!S.quest.cliente.nome && d.contribuente.nome) S.quest.cliente.nome = d.contribuente.nome;
+        if (!S.quest.cliente.cf && d.contribuente.cf) S.quest.cliente.cf = d.contribuente.cf;
+        delete d.contribuente;
+        var tesi = {}; Object.keys(PR.TESI).forEach(function (k) { tesi[k] = PR.applicabile(k, d); });
+        S.atti.push({ id: idAtto++, nome: files[i].name, tipo: tipo, d: d, notifica: "", tesi: tesi, premesse: "", allegati: "", pecDomicilio: "", citta: S.memoria.citta || "", data: "" });
+      } catch (e) { errori.push(files[i].name + ": " + (e.message || String(e))); }
+    }
+    S.attiErrore = errori.join(" · ") || null;
+    render();
+  }
+  function attoDa(id) { return S.atti.filter(function (a) { return a.id === +id; })[0]; }
+  function giorniA(g) { return Math.round((Date.parse(g + "T00:00:00Z") - Date.parse(oggiIso + "T00:00:00Z")) / 86400000); }
+  var COLORE = { verde: "", giallo: "mid", rosso: "hi" };
+  function viewPratica() {
+    var h = '<h2>Pratica con l\'Agenzia delle Entrate</h2><p class="lead">Dall\'invito o questionario allo schema di atto e all\'atto impositivo: si caricano gli atti ricevuti, se ne leggono dati e rilievi, si confrontano con i calcoli e si preparano osservazioni e prospetti, con le scadenze di ogni fase.</p>';
+    h += '<div class="panel"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Atti ricevuti</h3></div>' +
+      '<label class="f" style="margin-top:10px"><span class="t">Carica un atto dell\'Agenzia (PDF)</span><input type="file" multiple accept=".pdf" data-atti><span class="small">Si legge lo schema di atto (art. 6-bis L. 212/2000). Dell\'atto si tengono i dati dell\'Ufficio, i rilievi e gli importi; nome e codice fiscale servono solo a proporre i dati del cliente.</span></label>' +
+      (S.attiErrore ? '<p class="small" style="color:var(--hi)">' + esc(S.attiErrore) + "</p>" : "") + "</div>";
+    // sequenza della pratica
+    var invito = S.atti.map(function (a) { return a.d.atto.invito; }).filter(Boolean)[0];
+    var fasi = [["Invito o questionario (art. 32 DPR 600/1973)", invito ? "n. " + invito.numero + ", notificato il " + it(invito.data) : S.quest.anni.length ? "anni " + S.quest.anni.join(", ") : "", '<button type="button" class="btnlink" data-tab="' + VISTE.indexOf("questionario") + '">Risposte, fascicolo, dichiarazione sostitutiva e memoria</button>']]
+      .concat(S.atti.map(function (a) { return [PR.NOMI_TIPO[a.tipo], "n. " + esc(a.d.atto.numero || "") + " · anno " + a.d.atto.anno + (a.notifica ? " · notificato il " + it(a.notifica) : ""), '<a class="btnlink" href="#atto' + a.id + '">Dati, controlli e osservazioni</a>']; }))
+      .concat([["Atto impositivo (avviso di accertamento) e atto di contestazione RW", "", '<span class="small muted">Acquiescenza, adesione o ricorso: la lettura automatica arriverà con un campione.</span>']]);
+    h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Sequenza della pratica</h3>' + tab(["Fase", "Atto", ""], fasi.map(function (f) { return [esc(f[0]), f[1], f[2]]; }), 20);
+    var sc = []; S.atti.forEach(function (a) { PR.scadenze(a.tipo, a.notifica, a.d.atto.giorniOsservazioni).forEach(function (x) { sc.push({ x: x, a: a }); }); });
+    sc.sort(function (p, q) { return p.x.data < q.x.data ? -1 : 1; });
+    h += sc.length ? "<h4>Scadenze</h4>" + tab(["Scadenza", "Giorni", "Adempimento"], sc.map(function (s) { var g = giorniA(s.x.data); return ['<b style="color:var(--' + (g < 0 ? "muted" : g <= 10 ? "hi" : g <= 30 ? "mid" : "ok") + ')">' + it(s.x.data) + "</b>" + (s.x.prorogata ? ' <span class="small">(termine del ' + it(s.x.nominale) + ", festivo)</span>" : ""), g < 0 ? "scaduta" : g, esc(s.x.voce)]; }), 20) : '<p class="small muted">Indicate la data di notifica di ogni atto per avere le scadenze.</p>';
+    h += "</div>";
+    S.atti.forEach(function (a) { h += sezioneSchema(a); });
+    return h;
+  }
+  function sezioneSchema(a) {
+    var d = a.d, A = d.atto, sc = PR.scenari(d, a.tesi), cols = sc.colonne;
+    var h = '<div class="panel" id="atto' + a.id + '" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Schema di atto n. ' + esc(A.numero || "") + " · anno " + A.anno + '</h3><div class="toolbar"><button type="button" class="btn gold" data-osswd="' + a.id + '">Osservazioni in Word</button><button type="button" class="btn" data-ossxl="' + a.id + '">Prospetto Excel</button><button type="button" class="btn ghost" data-ossst="' + a.id + '">Stampa / PDF</button><button type="button" class="btnlink small" data-togatto="' + a.id + '">Togli</button></div></div>' +
+      '<p class="small">' + esc(a.nome) + " · " + esc(A.ufficio || "") + (A.pec ? " · " + esc(A.pec) : "") + (A.funzionario ? " · referente " + esc(A.funzionario) : "") + (A.dichiarazioneOmessa ? " · dichiarazione omessa" : "") + "</p>";
+    h += '<div class="grid2"><label class="f"><span class="t">Data di notifica dello schema</span><input type="date" data-att="' + a.id + '" data-k="notifica" value="' + esc(a.notifica) + '"></label>' +
+      '<div class="f"><span class="t">Pretesa dello schema</span><span class="small">Imponibile ' + E(d.totaleImponibile) + " · imposta sostitutiva " + E(d.rt.imposta) + " (" + Math.round((d.rt.aliquota || 0) * 100) + "%) · IVACA " + E(d.ivaca) + " · sanzioni " + E(d.sanzioni.totale) + (d.rw.sanzioneSeparata ? " · sanzione RW con atto separato" : "") + "</span></div></div>";
+    h += "<h4>Rilievi: componenti del quadro RT</h4>" + tab(["Componente", "Natura", "Data", "n:Importo", "Segno"], d.componenti.map(function (c) { return [esc(c.voce), esc(PR.NOMI_NATURA[c.tipo]) + (c.stablecoin ? ' <span class="small" style="color:var(--mid)">in stablecoin</span>' : ""), c.data ? it(c.data) : "", E(c.importo), c.segno < 0 ? "–" : "+"]; }).concat([["<b>Totale imponibile dello schema</b>", "", "", "<b>" + E(d.totaleImponibile) + "</b>", ""]]), 50);
+    if (d.prospetto.length) h += "<details><summary class=\"small\">Prospetto dichiarato / accertabile e sanzioni</summary>" + tab(["Rigo", "Descrizione", "n:Dichiarato", "n:Accertabile"], d.prospetto.map(function (p) { return [esc(p.rigo), esc(p.descrizione), E(p.dichiarato, 0), E(p.accertabile, 0)]; }), 40) +
+      tab(["Violazione", "Norma", "n:Misura", "n:Sanzione"], d.sanzioni.violazioni.map(function (v) { return [esc(v.descrizione), esc(v.norma), Math.round(v.misura * 100) + "%", E(v.minima)]; }), 10) + "</details>";
+    h += "<h4>Controlli sui numeri dello schema</h4><ul class=\"avvisi\">" + d.verifiche.map(function (v) { return '<li class="' + COLORE[v.livello] + '">' + esc(v.testo) + "</li>"; }).join("") + "</ul>";
+    // confronto con la nostra ricostruzione dello stesso anno
+    h += confrontoRicostruzione(d);
+    h += "<h4>Osservazioni: profili di diritto</h4><p class=\"small\">Metodo dello studio: i dati restano quelli dell'Ufficio (stesse operazioni, stessi controvalori, stesso costo) e si contestano solo profili di diritto. Le tesi si sommano nell'ordine, come nel prospetto.</p>" +
+      Object.keys(PR.TESI).map(function (k) { var ok = PR.applicabile(k, d); return '<label class="toggle"><input type="checkbox" data-tesi="' + a.id + '" data-k="' + k + '"' + (a.tesi[k] && ok ? " checked" : "") + (ok ? "" : " disabled") + "><span>" + esc(PR.TESI[k].titolo) + (ok ? "" : " (non applicabile a questo schema)") + "</span></label>"; }).join("");
+    h += '<div class="scroll" style="margin-top:8px">' + tab(["Voce"].concat(cols.map(function (c) { return "n:" + c.titolo; })), PR.tabellaScenari(sc).map(function (r) { return r.map(function (x, i) { return i === 0 ? String(x).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>") : String(x).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>"); }); }), 60) + "</div>";
+    h += '<div class="grid2" style="margin-top:10px">' +
+      '<label class="f"><span class="t">Premesse sui documenti consegnati <span class="muted small">(una per riga)</span></span><textarea rows="4" data-att="' + a.id + '" data-k="premesse" placeholder="es. il contribuente ha trasmesso la documentazione richiesta il …, ha partecipato al contraddittorio del …">' + esc(a.premesse) + '</textarea></label>' +
+      '<label class="f"><span class="t">Altri allegati <span class="muted small">(uno per riga, dopo il Prospetto)</span></span><textarea rows="4" data-att="' + a.id + '" data-k="allegati" placeholder="es. screenshot della corrispondenza con la piattaforma">' + esc(a.allegati) + '</textarea></label>' +
+      '<label class="f"><span class="t">PEC di domicilio digitale</span><input type="text" data-att="' + a.id + '" data-k="pecDomicilio" value="' + esc(a.pecDomicilio) + '"></label>' +
+      '<label class="f"><span class="t">Luogo e data delle osservazioni</span><span class="row"><input type="text" data-att="' + a.id + '" data-k="citta" value="' + esc(a.citta) + '" style="width:140px"><input type="date" data-att="' + a.id + '" data-k="data" value="' + esc(a.data) + '"></span></label></div>' +
+      '<p class="small">Contribuente nelle osservazioni: ' + esc(S.quest.cliente.nome || "da indicare") + (S.quest.cliente.cf ? " · " + esc(S.quest.cliente.cf) : "") + ' (dati del cliente nella scheda <button type="button" class="btnlink" data-tab="' + VISTE.indexOf("questionario") + '">Questionario AdE</button>).</p>';
+    return h + "</div>";
+  }
+  /* confronto con i calcoli dell'app per lo stesso anno: cessioni ricostruite (LIFO) e IVACA della prima scheda */
+  function confrontoRicostruzione(d) {
+    var anno = d.atto.anno; if (!S.tx) return '<p class="small muted">Caricando le transazioni Koinly si affianca allo schema la ricostruzione dei costi dello stesso anno.</p>';
+    var r = costiAnno(anno), t = anno >= 2023 ? r.totali.controValutaStable : r.totali.tutte, plus = t.corrispettivi - t.costi;
+    var righe = [["Plusvalenza netta (corrispettivi − costi)", E(d.totaleImponibile), E(plus), E(plus - (d.totaleImponibile || 0))], ["Corrispettivi delle cessioni rilevanti", E(d.rt.corrispettivi), E(t.corrispettivi), ""], ["Costi riconosciuti", "0 (costo zero)", E(t.costi), ""]];
+    if (ivaca && S.anno === anno) righe.push(["Imposta sul valore delle cripto-attività", E(d.ivaca), E(ivaca.totali.ivaca), E(ivaca.totali.ivaca - (d.ivaca || 0))]);
+    return "<h4>Confronto con la nostra ricostruzione del " + anno + "</h4>" + tab(["Voce", "n:Schema di atto", "n:Ricostruzione Koinly Tools", "n:Differenza"], righe, 10) +
+      '<p class="small">Ricostruzione dai costi LIFO globali con le correzioni dello studio (dal 2023 solo cessioni contro valuta e stablecoin, criterio dell\'app). Serve a valutare se proporre anche una diversa ricostruzione del costo, oltre ai profili di diritto.</p>';
+  }
+  function datiOss(a) {
+    return { tesi: a.tesi, studio: window.KoinlyStudio || {}, cliente: S.quest.cliente, notifica: a.notifica, citta: a.citta, data: a.data, pecDomicilio: a.pecDomicilio,
+      premesse: String(a.premesse || "").split("\n"), allegati: String(a.allegati || "").split("\n").map(function (x) { return x.trim(); }).filter(Boolean) };
+  }
+  function osservazioniWord(a) {
+    var st = window.KoinlyStudio || {}, B = PR.osservazioni(a.d, datiOss(a));
+    var bin = window.LumesDocx.crea(B, { titolo: "Osservazioni allo schema di atto " + (a.d.atto.numero || ""), autore: st.professionista,
+      intestazione: [st.professionista, st.qualifica].filter(Boolean), piede: [[st.indirizzo, st.email].filter(Boolean).join(" · ") + (st.partitaIva ? " · P.IVA " + st.partitaIva : "")] });
+    scaricaFile("osservazioni schema di atto " + String(a.d.atto.numero || "").replace(/\//g, "-") + ".docx", new Blob([bin], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }));
+  }
+  /* prospetto di calcolo con le formule, come l'allegato 1 dello studio */
+  function osservazioniExcel(a) {
+    var X = window.LumesXlsx, d = a.d, sc = PR.scenari(d, a.tesi), cols = sc.colonne, L = function (i) { return X.colonna(i); };
+    var righe = [[{ v: (S.quest.cliente.nome || "Contribuente") + (S.quest.cliente.cf ? " (C.F. " + S.quest.cliente.cf + ")" : "") + " – periodo d'imposta " + d.atto.anno + " – Osservazioni allo schema di atto " + (d.atto.numero || ""), s: "titolo" }],
+      [{ v: "Dati, wallet, piattaforme, controvalori e costo sono quelli dello schema di atto. Si contestano solo profili di diritto.", s: "nota" }],
+      ["Aliquota dello schema", { v: d.rt.aliquota || 0.26, s: "inputPct" }, "Aliquota art. 5 D.Lgs. 461/1997", { v: 0.125, s: "inputPct" }, "Franchigia", { v: 2000, s: "inputEuro" }, "IVACA (schema)", { v: d.ivaca || 0, s: "inputEuro" }],
+      ["Sanzione dello schema", { v: sc.misura || 0, s: "inputPct" }], [],
+      [{ v: "Componente", s: "intestazione" }].concat(cols.map(function (c) { return { v: c.titolo, s: "intestazione" }; })).concat([{ v: "Note", s: "intestazione" }])];
+    var primaComp = righe.length + 1;
+    cols[0].righe.forEach(function (r, i) {
+      var comp = d.componenti.filter(function (c) { return c.tipo !== "franchigia"; })[i];
+      righe.push([r.voce].concat(cols.map(function (c) { return { v: Math.round(c.righe[i].importo * 100) / 100, s: "inputEuro" }; })).concat([cols.some(function (c) { return c.righe[i].escluso; }) ? comp.a + " non è un e-money token: permuta neutra" : "Invariata"]));
+    });
+    var ultComp = righe.length, rTot = ultComp + 1, rFr = rTot + 1, rImp = rFr + 1, rAl = rImp + 1, rIs = rAl + 1, rIv = rIs + 1, rSa = rIv + 1;
+    var col = function (k) { return L(k + 1); };
+    righe.push(["Totale plusvalenze nette"].concat(cols.map(function (c, k) { return { f: "SUM(" + col(k) + primaComp + ":" + col(k) + ultComp + ")", s: "euro" }; })));
+    righe.push(["Franchigia art. 67, c. 1, lett. c-sexies)"].concat(cols.map(function (c, k) { return { f: d.componenti.some(function (x) { return x.tipo === "franchigia"; }) ? "-MIN($F$3,MAX(0," + col(k) + rTot + "))" : "0", s: "euro" }; })));
+    righe.push([{ v: "Imponibile RT", s: "grassetto" }].concat(cols.map(function (c, k) { return { f: col(k) + rTot + "+" + col(k) + rFr, s: "totale" }; })));
+    righe.push(["Aliquota"].concat(cols.map(function (c, k) { return { f: c.tesi.indexOf("aliquota") >= 0 ? "$D$3" : "$B$3", s: "inputPct" }; })));
+    righe.push([{ v: "Imposta sostitutiva", s: "grassetto" }].concat(cols.map(function (c, k) { return { f: "ROUND(" + col(k) + rImp + "*" + col(k) + rAl + ",0)", s: "totale" }; })));
+    righe.push(["Imposta sul valore delle cripto-attività"].concat(cols.map(function () { return { f: "$H$3", s: "euro" }; })));
+    righe.push(["Sanzione (come nello schema)"].concat(cols.map(function (c, k) { return { f: "ROUND(ROUND(" + col(k) + rIs + "+" + col(k) + rIv + ",0)*$B$4,2)", s: "euro" }; })).concat(["Sanzione su imposta sostitutiva e IVACA arrotondate"]));
+    righe.push([]); righe.push([{ v: "Note", s: "grassetto" }]);
+    Object.keys(PR.TESI).forEach(function (k, i) { if (cols.some(function (c) { return c.tesi.indexOf(k) >= 0; })) righe.push([{ v: (i + 1) + ". " + PR.TESI[k].titolo + ".", s: "nota" }]); });
+    var bin = X.crea([{ nome: "Prospetto di calcolo", colonne: [44].concat(cols.map(function () { return 20; })).concat([44]), righe: righe, orizzontale: true }]);
+    scaricaFile("prospetto osservazioni schema di atto " + String(d.atto.numero || "").replace(/\//g, "-") + ".xlsx", new Blob([bin], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  }
+  function stampaOsservazioni(a) {
+    var B = PR.osservazioni(a.d, datiOss(a)), md = function (s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>"); };
+    apriStampa(intestazione("Osservazioni allo schema di atto " + (a.d.atto.numero || "")) + B.map(function (b) {
+      if (b.t === "titolo") return '<h2 style="text-align:center">' + md(b.testo) + "</h2>";
+      if (b.t === "sottotitolo") return "<h3>" + md(b.testo) + "</h3>";
+      if (b.t === "elenco") return (b.numerato ? "<ol>" : "<ul style=\"list-style:none;padding-left:0\">") + b.voci.map(function (v) { return "<li>" + md(v) + "</li>"; }).join("") + (b.numerato ? "</ol>" : "</ul>");
+      if (b.t === "tabella") return '<table class="det"><thead><tr>' + b.intest.map(function (x) { return "<th>" + md(x) + "</th>"; }).join("") + "</tr></thead><tbody>" + b.righe.map(function (r) { return "<tr>" + r.map(function (x, i) { return '<td class="' + (i && b.numeri ? "n" : "") + '">' + md(x) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table>";
+      return '<p style="text-align:' + (b.allinea === "right" ? "right" : "justify") + '">' + md(b.testo) + "</p>";
+    }).join(""));
+  }
   function render() {
     nav();
     var aperto = document.getElementById("spam"); if (aperto) S.spamAperti = aperto.open;
     var v = VISTE[S.tab];
-    app.innerHTML = (v === "caricamento" ? viewCaricamento() : v === "ivaca" ? viewIvaca() : v === "costi" ? viewCosti() : v === "questionario" ? viewQuestionario() : v === "sanzioni" ? viewSanzioni() : v === "modelli" ? viewModelli() : viewGuida()) +
+    app.innerHTML = (v === "caricamento" ? viewCaricamento() : v === "ivaca" ? viewIvaca() : v === "costi" ? viewCosti() : v === "questionario" ? viewQuestionario() : v === "pratica" ? viewPratica() : v === "sanzioni" ? viewSanzioni() : v === "modelli" ? viewModelli() : viewGuida()) +
       '<footer class="piede noprint">' + donazioni() + '<p class="small muted marchio">Koinly Tools non è affiliato né approvato da Koinly. «Koinly» è un marchio dei rispettivi titolari, citato solo per indicare i report compatibili.</p>' + diritti() + "</footer>";
   }
 
@@ -1426,6 +1547,9 @@
     if (t.matches("[data-mod]")) { S.modelli[t.getAttribute("data-mod")] = +t.value; render(); return; }
     if (t.matches("[data-sz]")) { S.sanz[t.getAttribute("data-sz")] = t.value || oggiIso; render(); return; }
     if (t.matches("[data-zfile]") && t.files[0]) { caricaReportAnno(+t.getAttribute("data-zfile"), t.files[0]); return; }
+    if (t.matches("[data-atti]") && t.files.length) { caricaAtti(t.files); return; }
+    if (t.matches("[data-att]")) { var at = attoDa(t.getAttribute("data-att")); if (at) at[t.getAttribute("data-k")] = t.value; render(); return; }
+    if (t.matches("[data-tesi]")) { var ats = attoDa(t.getAttribute("data-tesi")); if (ats) ats.tesi[t.getAttribute("data-k")] = t.checked; render(); return; }
     if (t.matches("[data-dich]") && t.files.length) { caricaDichiarazioni(t.files); return; }
     if (t.matches("[data-prov]")) { var dv = S.dich.filter(function (x) { return x.id === +t.getAttribute("data-prov"); })[0], dk = t.getAttribute("data-k"); if (dv) { dv[dk] = dk === "tipo" ? t.value : t.value === "" ? "" : +t.value; if (dk === "anno") { dv.daVerificare = false; S.dich.sort(function (a, b) { return (a.anno || 0) - (b.anno || 0); }); } } render(); return; }
     if (t.matches("[data-fonte]")) { var fv = S.fonti.filter(function (x) { return x.id === +t.getAttribute("data-fonte"); })[0], fk = t.getAttribute("data-k"); if (fv) fv[fk] = fk === "descrizione" ? t.value : t.value === "" ? "" : +t.value; render(); return; }
@@ -1453,6 +1577,10 @@
     else if (t.id === "salvaLavoro") salvaLavoro();
     else if (t.id === "etoroNeiQuadri") etoroNeiQuadri();
     else if (t.id === "stampaEtoro") stampaEtoro();
+    else if (t.matches("[data-osswd]")) osservazioniWord(attoDa(t.getAttribute("data-osswd")));
+    else if (t.matches("[data-ossxl]")) osservazioniExcel(attoDa(t.getAttribute("data-ossxl")));
+    else if (t.matches("[data-ossst]")) stampaOsservazioni(attoDa(t.getAttribute("data-ossst")));
+    else if (t.matches("[data-togatto]")) { var ta = +t.getAttribute("data-togatto"); S.atti = S.atti.filter(function (x) { return x.id !== ta; }); render(); }
     else if (t.id === "aggiungiFonte") { S.fonti.push({ id: idProv++, anno: new Date().getFullYear() - 1, descrizione: "", importo: "" }); render(); }
     else if (t.matches("[data-togfonte]")) { var tf = +t.getAttribute("data-togfonte"); S.fonti = S.fonti.filter(function (x) { return x.id !== tf; }); render(); }
     else if (t.matches("[data-togdich]")) { var td = +t.getAttribute("data-togdich"); S.dich = S.dich.filter(function (x) { return x.id !== td; }); render(); }

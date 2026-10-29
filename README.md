@@ -132,6 +132,17 @@ Prospetti compilati secondo i modelli ministeriali, stampabili in PDF con l'inte
 
   Anno di riferimento = anno d'imposta. Gli anni con dichiarazione omessa non vanno in F24.
 
+## 7. Pratica con l'Agenzia delle Entrate
+
+Scheda «Pratica AdE» (`pratica.js`): la sequenza della pratica, dall'invito o questionario (art. 32 DPR 600/1973, scheda «Questionario AdE») allo schema di atto (art. 6-bis L. 212/2000) e all'atto impositivo.
+
+- **Lettura dello schema di atto in PDF:** Ufficio, PEC, numero, anno, invito precedente, funzionario referente; tabella «Componenti quadro RT» con la natura di ogni rilievo (vendite con carta, permute, permute in stablecoin, prelievi verso wallet non riconosciuti, proventi, minusvalenze, franchigia) e la data dell'operazione; prospetto «dichiarato / accertabile» (RT, RW), IVACA, sanzioni. Nome e codice fiscale del contribuente servono solo a proporre i dati del cliente e non sono conservati nei dati dell'atto.
+- **Controlli sui numeri dello schema:** somma dei componenti e totale imponibile, segni stampati incoerenti, imposta = imponibile × aliquota, sanzione sulla base di imposta sostitutiva e IVACA arrotondate, franchigia per anno, sanzione RW rinviata ad atto separato.
+- **Scadenze dalla data di notifica:** istanza di adesione (30 giorni) e osservazioni (60 giorni), prorogate al primo giorno lavorativo (sabato, domenica, festivi nazionali e Pasquetta).
+- **Osservazioni con il metodo dello studio:** i dati restano quelli dell'Ufficio e si contestano solo profili di diritto, con colonne cumulative: permute in stablecoin non rilevanti (nessuna stablecoin era un e-money token prima di MiCAR; interrogazione 5-03682; niente sanzioni per obiettiva incertezza) e aliquota del 12,50% per il 2023 e il 2024 (art. 5 c. 2 D.Lgs. 461/1997). Se ci sono le transazioni, si affianca la ricostruzione dei costi dello stesso anno.
+- **Uscite:** osservazioni in Word nello schema delle memorie dello studio (premesso che, presenta, espone, chiede, elenco dei documenti), prospetto Excel con le formule (allegato 1), stampa o PDF. Gli atti si salvano nel file di lavoro.
+- **Atto impositivo e atto di contestazione RW:** nella sequenza con le scadenze (adesione 15 giorni, ricorso o acquiescenza 60 giorni); la lettura automatica arriverà con un campione.
+
 ## 6. Guida
 
 Scheda «Guida» per il cliente (`guida.js`): quali file Koinly scaricare, come usare le tre pagine, avvertenze. Si stampa o si salva in PDF con l'intestazione dello studio.
@@ -150,6 +161,7 @@ Scheda «Guida» per il cliente (`guida.js`): quali file Koinly scaricare, come 
 | `report.js` | Lettura degli altri report Koinly (Income, Expenses, Gifts/Lost, Other gains) |
 | `costi.js` | Costi di carico LIFO globali dall'origine, abbinamento dei trasferimenti, correzioni dello studio |
 | `provenienza.js` | Verifica della provenienza dei fondi con semaforo; anno d'imposta delle dichiarazioni dei redditi |
+| `pratica.js` | Pratica con l'Agenzia: lettura dello schema di atto, controlli, scenari delle osservazioni, scadenze, testo delle osservazioni |
 | `questionario.js` | Elementi di risposta al questionario dell'Agenzia, wallet, chiavi pubbliche e indirizzi |
 | `sanzioni.js` | Sanzioni, frazioni di ravvedimento, interessi legali, scadenze per anno |
 | `studio.js` | Dati dello studio per la stampa |

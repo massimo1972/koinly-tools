@@ -3,7 +3,7 @@
 # Senza argomenti esegue tutte le prove di test/*.test.js.
 cd "${0:a:h}/.." || exit 1
 JSC=/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
-MODULI=(lettura report provenienza detenzione ivaca sanzioni modelli costi banca estero etoro questionario xlsx-mini docx-mini)
+MODULI=(lettura report provenienza pratica detenzione ivaca sanzioni modelli costi banca estero etoro questionario xlsx-mini docx-mini)
 if [ $# -gt 0 ]; then PROVE=($@); else PROVE=(${(f)"$(ls test/*.test.js | sed 's#test/##; s#\.test\.js##')"}); fi
 TMP=$(mktemp -d); esito=0
 for t in $PROVE; do
