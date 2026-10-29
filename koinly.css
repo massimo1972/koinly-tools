@@ -3,13 +3,14 @@
 .beta-avviso{border-color:#f7931a;background:var(--mid-bg)}
 .beta-avviso strong{color:var(--mid)}
 .slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
-.slot{border:1px solid var(--line);border-radius:8px;padding:14px;background:var(--field);display:grid;gap:8px;align-content:start}
+.slot{border:1px solid var(--line);border-radius:8px;padding:14px;background:var(--field);display:grid;gap:8px;align-content:start;min-width:0}
 .slot.ok{border-color:var(--ok);background:var(--ok-bg)}
 .slot.err{border-color:var(--hi);background:var(--hi-bg)}
 .slot h3{margin:0;font-size:1rem}
 .slot .req{font:600 .72rem var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--gold)}
 .slot input[type=file]{font-size:.85rem;max-width:100%}
-.slot .stato{font-size:.85rem;margin:0}
+.slot .stato{font-size:.85rem;margin:0;overflow-wrap:anywhere}
+.grid2>div{min-width:0}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
 .card{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--surface)}
 .card .k{font-size:.8rem;color:var(--ink-2)}
