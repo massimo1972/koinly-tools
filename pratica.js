@@ -29,14 +29,17 @@
 
   /* tipo dell'atto dal testo */
   function tipoAtto(testo) {
+    // dall'intestazione dell'atto (maiuscolo, con il numero): nel testo gli altri atti sono spesso citati
     var t = String(testo || "");
-    if (/SCHEMA DI ATTO/i.test(t) && /6\s*-?\s*bis/i.test(t)) return "schema";
-    if (/AVVISO DI ACCERTAMENTO/i.test(t)) return "avviso";
-    if (/ATTO DI CONTESTAZIONE|IRROGAZIONE (DELLE|DI) SANZIONI/i.test(t)) return "contestazione";
-    if (/INVITO/i.test(t) && /art(icolo|\.)\s*32/i.test(t)) return "invito";
+    if (/SCHEMA DI ATTO N\.?\s*[A-Z0-9]/.test(t) && /6\s*-?\s*bis/i.test(t)) return "schema";
+    if (/ATTO DI CONTESTAZIONE N\.?\s*[A-Z0-9]/.test(t)) return "contestazione";
+    if (/ATTO DI DEFINIZIONE N\.?\s*[A-Z0-9]/.test(t)) return "definizione";
+    if (/AVVISO DI ACCERTAMENTO N\.?\s*[A-Z0-9]/.test(t)) return "avviso";
+    if (/IRROGAZIONE (DELLE|DI) SANZIONI/.test(t)) return "contestazione";
+    if (/INVITO/.test(t) && /art(icolo|\.)\s*32/i.test(t)) return "invito";
     return null;
   }
-  var NOMI_TIPO = { invito: "Invito o questionario (art. 32 DPR 600/1973)", schema: "Schema di atto (art. 6-bis L. 212/2000)", avviso: "Avviso di accertamento", contestazione: "Atto di contestazione o irrogazione delle sanzioni" };
+  var NOMI_TIPO = { invito: "Invito o questionario (art. 32 DPR 600/1973)", schema: "Schema di atto (art. 6-bis L. 212/2000)", avviso: "Avviso di accertamento", contestazione: "Atto di contestazione delle sanzioni (art. 16 D.Lgs. 472/1997)", definizione: "Atto di definizione (art. 5-quater D.Lgs. 218/1997)" };
 
   /* dati comuni degli atti: Ufficio, numero, anno, invito precedente, funzionario referente; il contribuente solo per proporre i dati del cliente */
   function intestazione(testo) {
@@ -226,7 +229,115 @@
       { data: piuGiorni(notifica, 15), voce: "Istanza di accertamento con adesione, se non già presentata dopo lo schema di atto (15 giorni, art. 6 c. 2-bis D.Lgs. 218/1997)" },
       { data: piuGiorni(notifica, 60), voce: "Ricorso alla Corte di giustizia tributaria di primo grado o acquiescenza con sanzioni a 1/3 (60 giorni, più la sospensione feriale dal 1° al 31 agosto per il ricorso)" }];
     if (tipo === "invito") return [{ data: piuGiorni(notifica, giorni || 15), voce: "Risposta all'invito (termine indicato nell'atto)" }];
+    if (tipo === "contestazione") return [{ data: sessantaGiorni(notifica), voce: "Definizione agevolata a 1/3 (versamento, o prima rata), deduzioni difensive o ricorso alla Corte di giustizia tributaria (60 giorni, sospensione feriale dal 1° al 31 agosto)" }];
     return [];
+  }
+
+  /* ---------- atto di contestazione delle sanzioni (art. 16 D.Lgs. 472/1997), di solito per il quadro RW ----------
+     Provvedimento di determinazione delle sanzioni: per anno «NN tributo - descrizione, IMPOSTA (= valore non dichiarato),
+     norma, minima, massima, SANZIONE PECUNIARIA DAL x% AL y%»; prospetto A (cumulo giuridico) o B; DETERMINA; definizione a 1/3 (cod. 9601). */
+  function leggiContestazione(pagine) {
+    var grezzo = pagine.map(function (p) { return String(p.text || ""); }).join("\n");
+    var testo = pagine.map(function (p) { return String(p.text || "").split("\n").filter(function (l) { return !/^Pagina \d+ di \d+$|^ATTO DI CONTESTAZIONE N\.|^_{10,}|^Gli importi sono espressi in Euro/.test(l.trim()); }).join("\n"); }).join("\n");
+    if (tipoAtto(grezzo) !== "contestazione") return { errore: "Il PDF non sembra un atto di contestazione dell'Agenzia delle Entrate." };
+    var h = intestazione(grezzo), o = h.atto, m;
+    if ((m = /ATTO DI CONTESTAZIONE N\.?\s*([A-Z0-9]+\/\d{4})/i.exec(grezzo))) o.numero = m[1];
+    if ((m = /relativamente agli anni\s*\n?\s*([\d,\s]+)/i.exec(grezzo))) o.anni = (m[1].match(/\d{4}/g) || []).map(Number);
+    if ((m = /Codice Ufficio\s*:\s*([A-Z0-9]+)/i.exec(grezzo))) o.codiceUfficio = m[1];
+    if ((m = /Codice Atto\s*:\s*([\d ]{8,})/i.exec(grezzo))) o.codiceAtto = m[1].replace(/\s/g, "");
+    var re = new RegExp("(?:ANNO DI COMPETENZA (\\d{4})\\s*\\n)?(\\d{2})\\s+([A-Za-z.]+)\\s*-\\s*([\\s\\S]*?)\\nIMPOSTA\\s+(" + NUM + ")\\s*\\n[a-z]\\)\\s*(ART[^\\n]*?)\\s+(" + NUM + ")\\s+(" + NUM + ")\\s*\\nSANZIONE PECUNIARIA DAL (\\d+)% AL (\\d+)%", "g");
+    var viol = [], anno = null;
+    while ((m = re.exec(testo))) {
+      if (m[1]) anno = +m[1];
+      viol.push({ n: m[2], tributo: m[3], anno: anno, descrizione: m[4].replace(/\s+/g, " ").trim(), valore: importo(m[5]), norma: m[6].trim(), minima: importo(m[7]), massima: importo(m[8]), da: +m[9] / 100, a: +m[10] / 100, rw: /ATT\. ESTERE|INVESTIMENTI/i.test(m[4]) });
+    }
+    var prospetto = /PROSPETTO A/i.test(testo) ? "A" : /PROSPETTO B/i.test(testo) ? "B" : null;
+    var materiale = (m = new RegExp("Cumulo materiale\\s*(" + NUM + ")", "i").exec(testo)) ? importo(m[1]) : null;
+    var giuridico = (m = new RegExp("-\\s*Cumulo giuridico\\s*(" + NUM + ")", "i").exec(testo)) ? importo(m[1]) : null;
+    var determinata = (m = new RegExp("DETERMINA[\\s\\S]{0,80}?EURO\\s*(" + NUM + ")", "i").exec(testo)) ? importo(m[1]) : null;
+    // righe della definizione: «Sanzioni di cui al Prosp. A (*)» o «Sanzione Imp.Sost. (*)», una per tributo, codice 96xx
+    var definizione = null, reDef = new RegExp("\\|\\s*(Sanzion[^|]*?)\\s*\\|\\s*(9\\d{3})\\s*\\|\\s*(\\d{4})\\s*\\|\\s*(" + NUM + ")\\s*\\|", "gi");
+    // solo la tabella delle avvertenze: lo stesso prospetto si ripete nel fac-simile F24 allegato
+    var iDef = testo.search(/Si riepilogano le somme dovute/i), bloccoDef = iDef >= 0 ? testo.slice(iDef, iDef + 1500).split(/\n\s*\(\*\)|\n\s*\(#\)/)[0] : "";
+    while ((m = reDef.exec(bloccoDef))) { if (!definizione) definizione = { codice: m[2], anno: +m[3], importo: 0, righe: [] }; definizione.importo = r2(definizione.importo + importo(m[4])); definizione.righe.push({ voce: m[1].replace(/\s*\(\*\)/, ""), codice: m[2], anno: +m[3], importo: importo(m[4]) }); }
+    var spese = (m = new RegExp("Spese di notifica[^|]*\\|\\s*(\\d{4})\\s*\\|\\s*\\d{4}\\s*\\|\\s*(" + NUM + ")\\s*\\|", "i").exec(testo)) ? importo(m[2]) : 0;
+    var d = { tipo: "contestazione", atto: o, violazioni: viol, prospetto: prospetto, cumuloMateriale: materiale, cumuloGiuridico: giuridico, determinata: determinata, definizione: definizione, speseNotifica: spese, contribuente: h.contribuente };
+    if (!o.anno && viol.length) o.anno = Math.max.apply(null, viol.map(function (v) { return v.anno || 0; }));
+    d.calcolo = calcoloContestazione(viol.map(function (v) { return { anno: v.anno, valore: v.valore, tributo: v.tributo, da: v.da }; }));
+    d.verifiche = verificheContestazione(d);
+    return d;
+  }
+  /* sanzione per le violazioni RW: misura minima (3%) per anno, cumulo giuridico per violazioni della stessa indole in più anni
+     (art. 12 c. 5 e c. 1-2 D.Lgs. 472/1997: violazione più grave aumentata della metà, poi di un quarto) a confronto con il cumulo
+     materiale (c. 7: si applica il più favorevole); definizione agevolata a 1/3, non meno di 1/3 dei minimi delle violazioni più gravi
+     per ciascun tributo (art. 16 c. 3) */
+  function calcoloContestazione(righe) {
+    var r = righe.filter(function (x) { return x.valore > 0; }).map(function (x) { return Object.assign({}, x, { minima: r2(x.valore * (x.da || 0.03)) }); });
+    var materiale = r2(r.reduce(function (s, x) { return s + x.minima; }, 0)), piuGrave = r.reduce(function (m, x) { return x.minima > m ? x.minima : m; }, 0);
+    var anni = r.map(function (x) { return x.anno; }).filter(function (x, i, l) { return l.indexOf(x) === i; }).length;
+    var giuridico = r.length > 1 ? r2(r2(piuGrave * 1.5) * 1.25) : null;
+    if (r.length > 1 && anni <= 1) giuridico = r2(piuGrave * 1.25); // stesso anno: solo l'aumento di un quarto
+    var sanzione = giuridico != null ? Math.min(materiale, giuridico) : materiale;
+    var perTributo = {}; r.forEach(function (x) { var k = x.tributo || "-"; perTributo[k] = Math.max(perTributo[k] || 0, x.minima); });
+    var minimoDef = r2(Object.keys(perTributo).reduce(function (s, k) { return s + perTributo[k]; }, 0) / 3);
+    var definizione = r2(Math.max(sanzione / 3, minimoDef));
+    return { righe: r, materiale: materiale, giuridico: giuridico, applicato: giuridico != null && giuridico < materiale ? "giuridico" : "materiale", sanzione: r2(sanzione), definizione: definizione, minimoDefinizione: minimoDef,
+      rate: definizione > 50000 ? 16 : 8 };
+  }
+  function verificheContestazione(d) {
+    var out = [], c = d.calcolo;
+    if (!d.violazioni.length) { out.push({ livello: "rosso", testo: "Violazioni non trovate nel provvedimento di determinazione delle sanzioni: inserire i dati a mano." }); return out; }
+    d.violazioni.forEach(function (v) {
+      var min = r2(v.valore * v.da);
+      out.push(Math.abs(min - v.minima) <= 0.02 ? { livello: "verde", testo: v.anno + ": sanzione minima " + eur(v.minima) + " = " + Math.round(v.da * 100) + "% del valore non dichiarato di " + eur(v.valore) + "." } : { livello: "rosso", testo: v.anno + ": sanzione minima dell'atto " + eur(v.minima) + " diversa dal " + Math.round(v.da * 100) + "% del valore (" + eur(min) + ")." });
+    });
+    if (d.cumuloMateriale != null && Math.abs(d.cumuloMateriale - c.materiale) > 0.02) out.push({ livello: "rosso", testo: "Cumulo materiale dell'atto (" + eur(d.cumuloMateriale) + ") diverso dalla somma delle sanzioni (" + eur(c.materiale) + ")." });
+    if (d.cumuloGiuridico != null && c.giuridico != null && Math.abs(d.cumuloGiuridico - c.giuridico) > 0.05) out.push({ livello: "giallo", testo: "Cumulo giuridico dell'atto (" + eur(d.cumuloGiuridico) + ") diverso dal ricalcolo (" + eur(c.giuridico) + ")." });
+    if (d.determinata != null) out.push(Math.abs(d.determinata - c.sanzione) <= 0.05 ? { livello: "verde", testo: "Sanzione determinata " + eur(d.determinata) + ": è la più favorevole tra cumulo materiale" + (c.giuridico != null ? " e cumulo giuridico (art. 12 c. 7 D.Lgs. 472/1997)" : "") + "." } : { livello: "rosso", testo: "Sanzione determinata (" + eur(d.determinata) + ") diversa dalla più favorevole ricalcolata (" + eur(c.sanzione) + ")." });
+    if (d.definizione) out.push(Math.abs(d.definizione.importo - c.definizione) <= 0.05 ? { livello: "verde", testo: "Definizione agevolata " + eur(d.definizione.importo) + " (codice tributo " + d.definizione.codice + "): un terzo della sanzione, non meno di un terzo dei minimi." } : { livello: "giallo", testo: "Importo della definizione dell'atto (" + eur(d.definizione.importo) + ") diverso dal ricalcolo (" + eur(c.definizione) + ")." });
+    out.push({ livello: "giallo", testo: "Dopo la notifica dell'atto il ravvedimento non è più possibile: restano definizione agevolata, deduzioni difensive o ricorso. I valori contestati vanno confrontati con quelli ricostruiti (valore finale o massimo del periodo, per wallet)." });
+    return out;
+  }
+  /* strade possibili dopo l'atto di contestazione: definizione a 1/3, deduzioni difensive con i valori ricostruiti, ricorso.
+     nostri: { anno: valore RW secondo la ricostruzione } (facoltativo) */
+  function opzioniContestazione(d, nostri, notifica) {
+    var c = d.calcolo, n = nostri || {}, scad = notifica ? scadenze("contestazione", notifica)[0] : null;
+    var conNostri = d.violazioni.some(function (v) { return n[v.anno] != null && n[v.anno] !== ""; });
+    var r = conNostri ? calcoloContestazione(d.violazioni.map(function (v) { return { anno: v.anno, tributo: v.tributo, da: v.da, valore: n[v.anno] != null && n[v.anno] !== "" ? +n[v.anno] : v.valore }; })) : null;
+    var rate = d.violazioni.every(function (v) { return v.anno >= 2023; }); // violazioni commesse dal 1/9/2024 (termine della dichiarazione dal 31/10/2024)
+    var opz = [
+      { chiave: "definizione", titolo: "Definizione agevolata (art. 16 c. 3 D.Lgs. 472/1997)", importo: d.definizione ? d.definizione.importo : c.definizione,
+        cosa: "Pagare un terzo della sanzione (codice tributo 9601" + (d.definizione ? ", anno " + d.definizione.anno : "") + (d.atto.codiceUfficio ? ", codice ufficio " + d.atto.codiceUfficio : "") + (d.atto.codiceAtto ? ", codice atto " + d.atto.codiceAtto : "") + ") rinunciando al ricorso" + (rate ? "; anche in " + c.rate + " rate trimestrali, la prima entro il termine, con gli interessi sulle successive" : ""),
+        rischio: "Nessuno: chiude la contestazione. Le spese di notifica (" + eur(d.speseNotifica || 0) + ") non sono dovute se l'atto è arrivato via PEC." },
+      { chiave: "deduzioni", titolo: "Deduzioni difensive (art. 16 c. 4 D.Lgs. 472/1997)", importo: r ? r.definizione : null, sanzione: r ? r.sanzione : null,
+        cosa: r ? "Contestare i valori con la ricostruzione: valori RW di " + d.violazioni.map(function (v) { return v.anno + " " + eur(n[v.anno] != null && n[v.anno] !== "" ? +n[v.anno] : v.valore); }).join(", ") + "; sanzione " + eur(r.sanzione) + " (" + (r.applicato === "giuridico" ? "cumulo giuridico" : "cumulo materiale") + "), definibile a un terzo: " + eur(r.definizione) : "Contestare valori o presupposti (wallet non del contribuente, valori diversi, esonero): indicare i valori ricostruiti per avere il ricalcolo.",
+        rischio: "L'Ufficio può non accoglierle ed emettere l'atto di irrogazione; il ricorso diretto contro l'atto di contestazione diventa improcedibile." },
+      { chiave: "ricorso", titolo: "Ricorso alla Corte di giustizia tributaria di primo grado (D.Lgs. 546/1992)", importo: d.determinata != null ? d.determinata : c.sanzione,
+        cosa: "Ricorso notificato via PEC all'Ufficio; difensore abilitato oltre 3.000 €; costituzione in giudizio entro 30 giorni con il contributo unificato.",
+        rischio: "Si perde la riduzione a un terzo: in caso di soccombenza la sanzione è piena (" + eur(d.determinata != null ? d.determinata : c.sanzione) + "), oltre alle spese." }
+    ];
+    return { scadenza: scad, conNostri: conNostri, ricalcolo: r, opzioni: opz, rate: rate };
+  }
+  /* nota per il cliente «valutazione e opzioni» (blocchi per docx-mini), nello schema delle note dello studio */
+  function valutazioneContestazione(d, o) {
+    var x = o || {}, op = opzioniContestazione(d, x.nostri, x.notifica), A = d.atto, B = [];
+    B.push({ t: "p", testo: "**" + (x.cliente && x.cliente.nome ? x.cliente.nome + " – " : "") + "Atto di contestazione n. " + (A.numero || "") + " – anni " + (A.anni || []).join(", ") + " – valutazione e opzioni**" });
+    B.push({ t: "sottotitolo", testo: "1. L'atto e i termini" });
+    B.push({ t: "tabella", intest: ["Cosa", "Entro", "Effetto"], righe: [["Definizione agevolata (pagamento di un terzo)", op.scadenza ? it(op.scadenza.data) : "60 giorni dalla notifica", "Chiude la contestazione"], ["Deduzioni difensive", op.scadenza ? it(op.scadenza.data) : "60 giorni dalla notifica", "L'Ufficio decide se irrogare la sanzione"], ["Ricorso", op.scadenza ? it(op.scadenza.data) : "60 giorni dalla notifica", "Giudizio davanti alla Corte di giustizia tributaria"]] });
+    B.push({ t: "p", testo: "Il termine di 60 giorni non corre dal 1° al 31 agosto ed è prorogato al primo giorno lavorativo. Dopo la notifica dell'atto il ravvedimento non è più possibile." });
+    B.push({ t: "sottotitolo", testo: "2. Cosa contesta l'Ufficio" });
+    B.push({ t: "tabella", intest: ["Anno", "Valore non dichiarato (RW)", "Sanzione minima (3%)", "Valore ricostruito"], numeri: [1, 2, 3], righe: d.violazioni.map(function (v) { var n = x.nostri && x.nostri[v.anno]; return [String(v.anno), num(v.valore), num(v.minima), n != null && n !== "" ? num(+n) : "–"]; }) });
+    B.push({ t: "p", testo: "Sanzione determinata: euro " + num(d.determinata != null ? d.determinata : d.calcolo.sanzione) + (d.calcolo.giuridico != null ? " (il più favorevole tra cumulo materiale, euro " + num(d.calcolo.materiale) + ", e cumulo giuridico, euro " + num(d.calcolo.giuridico) + ")" : "") + "." });
+    B.push({ t: "sottotitolo", testo: "3. Le strade possibili" });
+    B.push({ t: "tabella", intest: ["Strada", "Cosa si fa", "Importo", "Rischio"], numeri: [2], righe: op.opzioni.map(function (p) { return [p.titolo, p.cosa, p.importo != null ? num(p.importo) : "–", p.rischio]; }) });
+    if (x.valutazione) { B.push({ t: "sottotitolo", testo: "4. La nostra valutazione" }); String(x.valutazione).split("\n").filter(Boolean).forEach(function (l) { B.push({ t: "p", testo: l }); }); }
+    return B;
+  }
+  /* termine di 60 giorni con la sospensione feriale dal 1° al 31 agosto (art. 1 L. 742/1969), prorogato al primo giorno lavorativo */
+  function sessantaGiorni(notifica) {
+    var g = notifica, n = 0;
+    while (n < 60) { g = piuGiorni(g, 1); if (g.slice(5, 7) !== "08") n++; }
+    return g;
   }
 
   /* ---------- testo delle osservazioni allo schema di atto (blocchi per docx-mini) ---------- */
@@ -328,5 +439,5 @@
     P("**La L. 207/2024 conferma che prima del 2025 il 26% non si applicava.** Solo l'art. 1, comma 23, della L. 207/2024 ha stabilito che l'aliquota dell'imposta sostitutiva di cui all'art. 5 del D.Lgs. 461/1997 «è pari al 26 per cento». La norma non si qualifica come interpretativa (art. 1, comma 2, della L. 212/2000; Corte cost. n. 133/2020 e n. 397/1994), la formulazione «è da intendersi» è stata proposta e non approvata (emendamento 2.62, V Commissione della Camera, dicembre 2024) e le disposizioni tributarie non hanno efficacia retroattiva (art. 3, comma 1, della L. 212/2000). La stessa conclusione è sostenuta dal CNDCEC e dalla Fondazione Nazionale dei Commercialisti nel documento del 21/03/2025, che per i periodi d'imposta 2023 e 2024 indica l'aliquota del 12,50%.")
   ];
 
-  return { tipoAtto: tipoAtto, NOMI_TIPO: NOMI_TIPO, intestazione: intestazione, leggiSchema: leggiSchema, natura: natura, NOMI_NATURA: NOMI_NATURA, scenari: scenari, TESI: TESI, applicabile: applicabile, scadenze: scadenze, proroga: proroga, osservazioni: osservazioni, tabellaScenari: tabellaScenari, importo: importo, num: num, STABLE: STABLE };
+  return { tipoAtto: tipoAtto, NOMI_TIPO: NOMI_TIPO, intestazione: intestazione, leggiSchema: leggiSchema, leggiContestazione: leggiContestazione, calcoloContestazione: calcoloContestazione, opzioniContestazione: opzioniContestazione, valutazioneContestazione: valutazioneContestazione, sessantaGiorni: sessantaGiorni, natura: natura, NOMI_NATURA: NOMI_NATURA, scenari: scenari, TESI: TESI, applicabile: applicabile, scadenze: scadenze, proroga: proroga, osservazioni: osservazioni, tabellaScenari: tabellaScenari, importo: importo, num: num, STABLE: STABLE };
 });

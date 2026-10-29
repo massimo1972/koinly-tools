@@ -130,9 +130,51 @@
 
   /* ---------- viste ---------- */
   function nav() {
+    var vis = schedePercorso();
+    if (vis.indexOf(S.tab) < 0) S.tab = 1;
     document.getElementById("steps").innerHTML = TABS.map(function (t, i) {
-      return '<button type="button" data-tab="' + i + '"' + (S.tab === i ? ' aria-current="step"' : "") + '><span class="n">' + i + "</span>" + esc(t) + "</button>";
+      if (vis.indexOf(i) < 0) return "";
+      var nome = i === VISTE.indexOf("questionario") && S.percorso === "fascicolo" ? "Fascicolo per i controlli" : t;
+      return '<button type="button" data-tab="' + i + '"' + (S.tab === i ? ' aria-current="step"' : "") + '><span class="n">' + i + "</span>" + esc(nome) + "</button>";
     }).join("");
+  }
+  /* ---------- percorso scelto all'inizio: che cosa deve fare il cliente ---------- */
+  var PERCORSI = {
+    dichiarazione: { titolo: "La dichiarazione", testo: "Quadri RW e RT, imposta sulle cripto-attività, F24; ravvedimento per gli anni passati.", schede: ["guida", "caricamento", "costi", "ivaca", "modelli", "sanzioni"] },
+    agenzia: { titolo: "Rispondere all'Agenzia delle Entrate", testo: "Invito o questionario, schema di atto, atto di contestazione: risposte, osservazioni, opzioni e scadenze.", schede: VISTE },
+    entrambe: { titolo: "Entrambe le cose", testo: "Dichiarazione o ravvedimento e risposta all'Agenzia per gli stessi anni.", schede: VISTE },
+    fascicolo: { titolo: "Creare il fascicolo per i controlli", testo: "Preparare in anticipo costi, valori, risposte alle domande tipo, wallet e provenienza dei fondi, da consegnare se arriva un controllo.", schede: ["guida", "caricamento", "costi", "ivaca", "modelli", "questionario"] }
+  };
+  S.percorso = (function () { try { return localStorage.getItem("koinlyPercorso") || null; } catch (e) { return null; } })();
+  if (S.percorso && !PERCORSI[S.percorso]) S.percorso = null;
+  function scegliPercorsoA(p) { S.percorso = p; try { if (p) localStorage.setItem("koinlyPercorso", p); else localStorage.removeItem("koinlyPercorso"); } catch (e) {} }
+  function schedePercorso() { var v = S.percorso ? PERCORSI[S.percorso].schede : VISTE; return VISTE.map(function (x, i) { return v.indexOf(x) >= 0 ? i : -1; }).filter(function (i) { return i >= 0; }); }
+  // riquadri di caricamento che servono solo in alcuni percorsi
+  function inPercorso(cosa) { return !S.percorso || S.percorso !== "dichiarazione" || (cosa !== "banca" && cosa !== "dichiarazioni"); }
+  function scegliPercorso() {
+    if (!S.percorso) return '<div class="panel percorso"><h2 style="margin-top:0">Che cosa dovete fare?</h2><p class="lead">Scegliete il percorso: il programma mostra solo i file da caricare e i documenti che servono.</p><div class="cards">' +
+      Object.keys(PERCORSI).map(function (k) { return '<button type="button" class="card scelta" data-percorso="' + k + '"><div class="v">' + esc(PERCORSI[k].titolo) + '</div><div class="k">' + esc(PERCORSI[k].testo) + "</div></button>"; }).join("") + "</div></div>";
+    return '<div class="panel percorso"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Percorso: ' + esc(PERCORSI[S.percorso].titolo) + '</h3><button type="button" class="btnlink small" data-percorso="">Cambia percorso</button></div>' + daProdurre() + "</div>";
+  }
+  /* documenti da produrre nel percorso scelto, con lo stato e la scheda dove si preparano */
+  function daProdurre() {
+    var tab = function (v) { return VISTE.indexOf(v); }, qa = S.quest.anni.length, pr = S.percorso;
+    var voci = [
+      { per: ["dichiarazione", "agenzia", "entrambe", "fascicolo"], doc: "Costi di carico LIFO (Excel e PDF)", scheda: "costi", pronto: !!S.tx, manca: "le transazioni Koinly" },
+      { per: ["dichiarazione", "agenzia", "entrambe", "fascicolo"], doc: "Giorni di detenzione e IVACA (Excel e PDF)", scheda: "ivaca", pronto: !!ivaca, manca: "transazioni e saldi di inizio e fine anno" },
+      { per: ["dichiarazione", "entrambe", "fascicolo"], doc: "Quadro RW e quadro RT", scheda: "modelli", pronto: !!ivaca, manca: "i calcoli della scheda Giorni di detenzione" },
+      { per: ["dichiarazione", "entrambe"], doc: "Modello F24 (saldo e ravvedimento)", scheda: "sanzioni", pronto: S.sanz.anni.length > 0, manca: "gli anni nella scheda Sanzioni" },
+      { per: ["dichiarazione", "agenzia", "entrambe", "fascicolo"], doc: "Quadri dei broker esteri (RT al 26%, RM, RW)", scheda: "modelli", pronto: !!S.etoro || S.broker.length > 0, manca: "i rendiconti, se ci sono broker esteri", facoltativo: true },
+      { per: ["agenzia", "entrambe"], doc: "Sanzioni e ravvedimento degli anni contestati", scheda: "sanzioni", pronto: S.sanz.anni.length > 0, manca: "gli anni nella scheda Sanzioni" },
+      { per: ["agenzia", "entrambe", "fascicolo"], doc: pr === "fascicolo" ? "Risposte alle domande tipo dei controlli (PDF ed Excel)" : "Risposte al questionario: fascicolo PDF ed Excel", scheda: "questionario", pronto: qa > 0, manca: "gli anni da coprire" },
+      { per: ["agenzia", "entrambe", "fascicolo"], doc: "Dichiarazione sostitutiva sui wallet", scheda: "questionario", pronto: qa > 0 && !!S.quest.cliente.nome, manca: "anni, attribuzione dei wallet e dati del dichiarante" },
+      { per: ["agenzia", "entrambe", "fascicolo"], doc: "Verifica della provenienza dei fondi", scheda: "questionario", pronto: qa > 0 && (S.dich.length > 0 || S.fonti.length > 0), manca: "le dichiarazioni dei redditi o le altre fonti" },
+      { per: ["agenzia", "entrambe", "fascicolo"], doc: "Memoria tecnica in Word", scheda: "questionario", pronto: qa > 0, manca: "gli anni da coprire" },
+      { per: ["agenzia", "entrambe"], doc: "Osservazioni allo schema di atto o valutazione dell'atto di contestazione", scheda: "pratica", pronto: S.atti.length > 0, manca: "l'atto ricevuto, quando arriva", facoltativo: true }
+    ].filter(function (v) { return v.per.indexOf(pr) >= 0; });
+    return '<table class="det" style="margin-top:10px"><thead><tr><th>Documento da produrre</th><th>Stato</th><th>Dove</th></tr></thead><tbody>' + voci.map(function (v) {
+      return "<tr><td>" + esc(v.doc) + '</td><td class="small">' + (v.pronto ? '<span class="sem verde">Pronto</span>' : '<span class="sem ' + (v.facoltativo ? "giallo" : "rosso") + '">Manca</span> ' + esc(v.manca)) + '</td><td><button type="button" class="btnlink" data-tab="' + tab(v.scheda) + '">' + esc(v.scheda === "questionario" && pr === "fascicolo" ? "Fascicolo per i controlli" : TABS[tab(v.scheda)]) + "</button></td></tr>";
+    }).join("") + "</tbody></table>";
   }
   function slot(id, titolo, obbl, testo, accetta) {
     var x = S[id], err = S.errore[id], stato = "";
@@ -159,7 +201,7 @@
   }
   function viewCaricamento() {
     var B = S.banca;
-    var h = '<h2>Caricamento file</h2><p class="lead">Qui si caricano tutti i file della pratica. Per ciascuno è indicato che cosa contiene, dove si scarica e in quale scheda si usa. Le transazioni e i saldi di Koinly sono indispensabili; gli altri file aggiungono riscontri e quadri.</p>' +
+    var h = scegliPercorso() + '<h2>Caricamento file</h2><p class="lead">Qui si caricano tutti i file della pratica. Per ciascuno è indicato che cosa contiene, dove si scarica e in quale scheda si usa. Le transazioni e i saldi di Koinly sono indispensabili; gli altri file aggiungono riscontri e quadri.</p>' +
       '<div class="banner beta-avviso"><strong>Versione beta</strong><p>Koinly Tools è in fase di test: i risultati vanno verificati con lo studio prima di usarli per la dichiarazione o per qualsiasi versamento. Segnalazioni e suggerimenti sono benvenuti.</p></div>' +
       '<div class="banner"><strong>Riservatezza</strong><p>I file restano in questo browser: non vengono salvati né inviati in rete. Non sapete quali file caricare? <button type="button" class="btnlink" data-tab="0">Leggete la guida</button>.</p></div>';
     h += '<div class="panel"><h3 style="margin-top:0">Koinly</h3><div class="slots">' +
@@ -177,12 +219,12 @@
         (S.etoroErrore ? '<p class="stato" style="color:var(--hi)">' + esc(S.etoroErrore) + "</p>" : et ? '<p class="stato"><b>' + esc(et.nome) + "</b> · eToro<br>" + esc(et.d.periodo) + " · " + et.d.chiuse.length + " posizioni chiuse · " + et.d.attivita.length + " movimenti · " + et.d.dividendi.length + " dividendi · " + et.d.holdings.length + ' fotografie del portafoglio <button type="button" class="btnlink small" id="togliEtoro">togli</button></p>' : "") +
         (S.brokerErrore ? '<p class="stato" style="color:var(--hi)">' + esc(S.brokerErrore) + "</p>" : "") + S.broker.map(function (b) { return '<p class="stato"><input type="text" data-brnome="' + b.id + '" value="' + esc(b.d.broker) + '" style="width:170px" title="Nome del broker"> <b>' + esc(b.nome) + "</b> · " + b.d.operazioni.length + " cessioni · " + b.d.redditi.length + " redditi · " + b.d.posizioni.length + " posizioni e conti" + (b.d.errori.length ? ' · <span style="color:var(--hi)">' + b.d.errori.length + " righe da correggere</span>" : "") + ' <button type="button" class="btnlink small" data-togbroker="' + b.id + '">togli</button></p>'; }).join(""),
         S.etoroErrore || S.brokerErrore, et || S.broker.length) +
-      riquadro("Estratti conto bancari", "Facoltativo", "PDF con testo degli estratti conto (anche più file). Si tengono <b>solo</b> data, importo ed exchange dei movimenti verso o da piattaforme di cripto-attività; tutte le altre righe sono scartate e non vengono mostrate né salvate. Il riscontro con Koinly è nella scheda «Costi di carico».",
-        '<input type="file" multiple accept=".pdf" data-banca>', B.errore ? '<p class="stato" style="color:var(--hi)">' + esc(B.errore) + "</p>" : B.file ? '<p class="stato">' + B.file + " file letti: " + B.movimenti.length + " movimenti con exchange tenuti, " + B.scartate + ' righe scartate</p><button type="button" class="btnlink small" id="svuotaBanca">Togli gli estratti conto</button>' : "", B.errore, B.file) +
+      (inPercorso("banca") ? riquadro("Estratti conto bancari", "Facoltativo", "PDF con testo degli estratti conto (anche più file). Si tengono <b>solo</b> data, importo ed exchange dei movimenti verso o da piattaforme di cripto-attività; tutte le altre righe sono scartate e non vengono mostrate né salvate. Il riscontro con Koinly è nella scheda «Costi di carico».",
+        '<input type="file" multiple accept=".pdf" data-banca>', B.errore ? '<p class="stato" style="color:var(--hi)">' + esc(B.errore) + "</p>" : B.file ? '<p class="stato">' + B.file + " file letti: " + B.movimenti.length + " movimenti con exchange tenuti, " + B.scartate + ' righe scartate</p><button type="button" class="btnlink small" id="svuotaBanca">Togli gli estratti conto</button>' : "", B.errore, B.file) : "") +
       "</div></div>";
     h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Lavoro dello studio</h3><div class="slots">' +
-      riquadro("Dichiarazioni dei redditi", "Facoltativo", "PDF delle dichiarazioni dei redditi del cliente (Redditi PF o 730) o delle CU, anche più file e anche di anni precedenti al primo investimento: servono alla verifica della provenienza dei fondi nel fascicolo per l'Agenzia. Dal file si legge solo l'anno d'imposta; reddito complessivo e imposte si indicano nella scheda «Questionario AdE». Il contenuto del file non viene conservato.",
-        '<input type="file" multiple accept=".pdf" data-dich>', (S.dichErrore ? '<p class="stato" style="color:var(--hi)">' + esc(S.dichErrore) + "</p>" : "") + (S.dich.length ? '<p class="stato">' + S.dich.map(function (x) { return "<b>" + esc(x.nome) + "</b> · " + esc(x.tipo) + " " + (x.anno || "anno da indicare") + ' <button type="button" class="btnlink small" data-togdich="' + x.id + '">togli</button>'; }).join("<br>") + "</p>" : ""), S.dichErrore, S.dich.length) +
+      (inPercorso("dichiarazioni") ? riquadro("Dichiarazioni dei redditi", "Facoltativo", "PDF delle dichiarazioni dei redditi del cliente (Redditi PF o 730) o delle CU, anche più file e anche di anni precedenti al primo investimento: servono alla verifica della provenienza dei fondi nel fascicolo per l'Agenzia. Dal file si legge solo l'anno d'imposta; reddito complessivo e imposte si indicano nella scheda «Questionario AdE». Il contenuto del file non viene conservato.",
+        '<input type="file" multiple accept=".pdf" data-dich>', (S.dichErrore ? '<p class="stato" style="color:var(--hi)">' + esc(S.dichErrore) + "</p>" : "") + (S.dich.length ? '<p class="stato">' + S.dich.map(function (x) { return "<b>" + esc(x.nome) + "</b> · " + esc(x.tipo) + " " + (x.anno || "anno da indicare") + ' <button type="button" class="btnlink small" data-togdich="' + x.id + '">togli</button>'; }).join("<br>") + "</p>" : ""), S.dichErrore, S.dich.length) : "") +
       riquadro("File di lavoro", "Facoltativo", "Il file JSON salvato da Koinly Tools con le correzioni dei costi, le attribuzioni dei wallet con i loro indirizzi e chiavi pubbliche, i dati del cliente e gli altri redditi inseriti nei quadri. Salvatelo prima di chiudere la pagina e ricaricatelo qui per riprendere il lavoro.",
         '<input type="file" accept=".json" data-lavoro><div class="toolbar" style="margin-top:8px"><button type="button" class="btn ghost" id="salvaLavoro">Salva il lavoro in un file</button></div>', '<p class="stato">' + (S.lavoroCaricato ? "Caricato: " + esc(S.lavoroCaricato) : Object.keys(S.correzioni).length + " correzioni in questa sessione") + "</p>", false, S.lavoroCaricato) +
       "</div></div>";
@@ -438,11 +480,11 @@
   };
   function scaricaFile(nome, blob) { var l = document.createElement("a"); l.href = URL.createObjectURL(blob); l.download = nome; document.body.appendChild(l); l.click(); setTimeout(function () { URL.revokeObjectURL(l.href); l.remove(); }, 1000); }
   function salvaLavoro() {
-    var dati = { programma: "Koinly Tools", versione: 1, salvato: new Date().toISOString(), transazioni: S.tx ? S.tx.nome : "", correzioni: S.correzioni, attribuzioni: S.quest.flag, chiaviWallet: S.quest.chiavi, memoria: S.memoria, cliente: S.quest.cliente, altriRedditi: S.altri, dichiarazioni: S.dich, altreFonti: S.fonti, atti: S.atti };
+    var dati = { programma: "Koinly Tools", versione: 1, salvato: new Date().toISOString(), transazioni: S.tx ? S.tx.nome : "", correzioni: S.correzioni, attribuzioni: S.quest.flag, chiaviWallet: S.quest.chiavi, memoria: S.memoria, cliente: S.quest.cliente, altriRedditi: S.altri, dichiarazioni: S.dich, altreFonti: S.fonti, atti: S.atti, percorso: S.percorso };
     scaricaFile("koinly-tools-lavoro.json", new Blob([JSON.stringify(dati, null, 1)], { type: "application/json" }));
   }
   async function caricaLavoro(f) {
-    try { var j = JSON.parse(await f.text()); S.correzioni = j.correzioni || {}; S.quest.flag = j.attribuzioni || {}; S.quest.chiavi = j.chiaviWallet || {}; if (j.memoria) S.memoria = Object.assign(S.memoria, j.memoria); S.quest.cliente = Object.assign(S.quest.cliente, j.cliente || {}); if (j.atti) { S.atti = j.atti; idAtto = S.atti.reduce(function (m, x) { return Math.max(m, x.id + 1); }, idAtto); } if (j.dichiarazioni) { S.dich = j.dichiarazioni; S.fonti = j.altreFonti || []; idProv = S.dich.concat(S.fonti).reduce(function (m, x) { return Math.max(m, x.id + 1); }, idProv); } if (j.altriRedditi) { S.altri = j.altriRedditi; altroId = S.altri.reduce(function (m, x) { return Math.max(m, x.id + 1); }, 1); } S.lavoroCaricato = f.name + (j.transazioni ? " (transazioni: " + j.transazioni + ")" : ""); }
+    try { var j = JSON.parse(await f.text()); S.correzioni = j.correzioni || {}; S.quest.flag = j.attribuzioni || {}; S.quest.chiavi = j.chiaviWallet || {}; if (j.memoria) S.memoria = Object.assign(S.memoria, j.memoria); S.quest.cliente = Object.assign(S.quest.cliente, j.cliente || {}); if (j.percorso && PERCORSI[j.percorso]) scegliPercorsoA(j.percorso); if (j.atti) { S.atti = j.atti; idAtto = S.atti.reduce(function (m, x) { return Math.max(m, x.id + 1); }, idAtto); } if (j.dichiarazioni) { S.dich = j.dichiarazioni; S.fonti = j.altreFonti || []; idProv = S.dich.concat(S.fonti).reduce(function (m, x) { return Math.max(m, x.id + 1); }, idProv); } if (j.altriRedditi) { S.altri = j.altriRedditi; altroId = S.altri.reduce(function (m, x) { return Math.max(m, x.id + 1); }, 1); } S.lavoroCaricato = f.name + (j.transazioni ? " (transazioni: " + j.transazioni + ")" : ""); }
     catch (e) { S.lavoroCaricato = "File non valido: " + e.message; }
     render();
   }
@@ -781,7 +823,7 @@
     return h + "</div>";
   }
   function viewQuestionario() {
-    var h = '<h2>Questionario dell\'Agenzia delle Entrate</h2><p class="lead">Elementi di risposta alle domande tipo sulle cripto-attività (inviti ex art. 32 DPR 600/1973), ricavati dai file Koinly e dai costi di carico ricostruiti. Le parti che Koinly non contiene sono indicate come da integrare.</p>';
+    var h = (S.percorso === "fascicolo" ? '<h2>Fascicolo per i controlli</h2><p class="lead"><b>Fascicolo preparato in anticipo</b>, prima di qualunque richiesta, con le stesse risposte che l\'Agenzia chiede negli inviti (art. 32 DPR 600/1973): si conserva e si consegna se arriva un controllo. Scegliete gli anni da coprire.</p><p class="small">' : '<h2>Questionario dell\'Agenzia delle Entrate</h2><p class="lead">') + 'Elementi di risposta alle domande tipo sulle cripto-attività (inviti ex art. 32 DPR 600/1973), ricavati dai file Koinly e dai costi di carico ricostruiti. Le parti che Koinly non contiene sono indicate come da integrare.</p>';
     if (!S.tx) return h + '<p class="muted">Caricate il file delle transazioni nella scheda <button type="button" class="btnlink" data-tab="1">Caricamento file</button>.</p>';
     var anni = anniCosti().filter(function (a) { return a >= 2017; });
     h += '<div class="panel"><div class="grid2"><div class="f"><span class="t">Anni richiesti dall\'Agenzia</span><div class="row">' + anni.map(function (a) { return '<label class="toggle"><input type="checkbox" data-qanno="' + a + '"' + (S.quest.anni.indexOf(a) >= 0 ? " checked" : "") + "><span>" + a + "</span></label>"; }).join("") + "</div></div>" +
@@ -802,7 +844,7 @@
   }
   function stampaQuest() {
     var q = calcolaQuest();
-    apriStampa(intestazione("Questionario Agenzia delle Entrate · cripto-attività · anni " + q.anni.join(", ")) +
+    apriStampa(intestazione((S.percorso === "fascicolo" ? "Fascicolo per i controlli" : "Questionario Agenzia delle Entrate") + " · cripto-attività · anni " + q.anni.join(", ")) +
       '<table class="dati"><tr><td>Contribuente</td><td>' + esc(S.quest.cliente.nome || "________________") + "</td></tr><tr><td>Codice fiscale</td><td>" + esc(S.quest.cliente.cf || "________________") + "</td></tr><tr><td>Fonte dei dati</td><td>" + esc(S.tx.nome) + " (Koinly), costi LIFO globali ricostruiti con " + Object.keys(S.correzioni).length + " correzioni dello studio</td></tr></table>" +
       sezioniQuest(q, true) + '<p class="nota">Elaborato predisposto sui dati Koinly: le parti indicate vanno integrate con la documentazione del contribuente (estratti conto, contratti, dichiarazioni). Allegato: file Excel con gli elenchi completi.</p>' + firma());
   }
@@ -1306,7 +1348,7 @@
   }
   function USD(x) { return x == null || !isFinite(x) ? "–" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "USD" }).format(x); }
   function viewGuida() {
-    return '<div class="toolbar noprint" style="justify-content:flex-end;margin-bottom:10px"><button type="button" class="btn gold" id="stampaGuida">Stampa / PDF della guida</button></div>' + (window.KoinlyGuida || "") + contattiStudio() +
+    return (S.percorso ? "" : scegliPercorso()) + '<div class="toolbar noprint" style="justify-content:flex-end;margin-bottom:10px"><button type="button" class="btn gold" id="stampaGuida">Stampa / PDF della guida</button></div>' + (window.KoinlyGuida || "") + contattiStudio() +
       '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Codice aperto e donazioni</h3>' + donazioni() + "</div>";
   }
   /* ---------- pratica con l'Agenzia delle Entrate: invito, schema di atto, atto impositivo ---------- */
@@ -1317,14 +1359,16 @@
     for (var i = 0; i < files.length; i++) {
       try {
         var pagine = await testoPdf(files[i]), tipo = PR.tipoAtto(pagine.map(function (p) { return p.text; }).join("\n"));
-        if (tipo !== "schema") throw new Error(tipo ? PR.NOMI_TIPO[tipo] + ": la lettura automatica arriverà con un campione; intanto si gestisce a mano nella sequenza della pratica." : "non sembra un atto dell'Agenzia delle Entrate.");
-        var d = PR.leggiSchema(pagine); if (d.errore) throw new Error(d.errore);
+        if (tipo !== "schema" && tipo !== "contestazione") throw new Error(tipo ? PR.NOMI_TIPO[tipo] + ": la lettura automatica arriverà con un campione; intanto si gestisce a mano nella sequenza della pratica." : "non sembra un atto dell'Agenzia delle Entrate.");
+        var d = tipo === "schema" ? PR.leggiSchema(pagine) : PR.leggiContestazione(pagine); if (d.errore) throw new Error(d.errore);
         // nome e codice fiscale del contribuente: solo per proporre i dati del cliente, se mancano
         if (!S.quest.cliente.nome && d.contribuente.nome) S.quest.cliente.nome = d.contribuente.nome;
         if (!S.quest.cliente.cf && d.contribuente.cf) S.quest.cliente.cf = d.contribuente.cf;
         delete d.contribuente;
-        var tesi = {}; Object.keys(PR.TESI).forEach(function (k) { tesi[k] = PR.applicabile(k, d); });
-        S.atti.push({ id: idAtto++, nome: files[i].name, tipo: tipo, d: d, notifica: "", tesi: tesi, premesse: "", allegati: "", pecDomicilio: "", citta: S.memoria.citta || "", data: "" });
+        var tesi = {}; if (tipo === "schema") Object.keys(PR.TESI).forEach(function (k) { tesi[k] = PR.applicabile(k, d); });
+        // valori RW ricostruiti per gli anni contestati, dalla scheda Sanzioni se ci sono
+        var nostri = {}; (d.violazioni || []).forEach(function (v) { var y = S.sanz.anni.filter(function (x) { return x.anno === v.anno; })[0]; if (y && +y.valoreRw) nostri[v.anno] = +y.valoreRw; });
+        S.atti.push({ id: idAtto++, nome: files[i].name, tipo: tipo, d: d, notifica: "", tesi: tesi, premesse: "", allegati: "", pecDomicilio: "", citta: S.memoria.citta || "", data: "", nostri: nostri, valutazione: "" });
       } catch (e) { errori.push(files[i].name + ": " + (e.message || String(e))); }
     }
     S.attiErrore = errori.join(" · ") || null;
@@ -1341,14 +1385,15 @@
     // sequenza della pratica
     var invito = S.atti.map(function (a) { return a.d.atto.invito; }).filter(Boolean)[0];
     var fasi = [["Invito o questionario (art. 32 DPR 600/1973)", invito ? "n. " + invito.numero + ", notificato il " + it(invito.data) : S.quest.anni.length ? "anni " + S.quest.anni.join(", ") : "", '<button type="button" class="btnlink" data-tab="' + VISTE.indexOf("questionario") + '">Risposte, fascicolo, dichiarazione sostitutiva e memoria</button>']]
-      .concat(S.atti.map(function (a) { return [PR.NOMI_TIPO[a.tipo], "n. " + esc(a.d.atto.numero || "") + " · anno " + a.d.atto.anno + (a.notifica ? " · notificato il " + it(a.notifica) : ""), '<a class="btnlink" href="#atto' + a.id + '">Dati, controlli e osservazioni</a>']; }))
-      .concat([["Atto impositivo (avviso di accertamento) e atto di contestazione RW", "", '<span class="small muted">Acquiescenza, adesione o ricorso: la lettura automatica arriverà con un campione.</span>']]);
+      .concat(S.atti.map(function (a) { return [PR.NOMI_TIPO[a.tipo], "n. " + esc(a.d.atto.numero || "") + " · " + (a.d.atto.anni && a.d.atto.anni.length > 1 ? "anni " + a.d.atto.anni.join(", ") : "anno " + a.d.atto.anno) + (a.notifica ? " · notificato il " + it(a.notifica) : ""), '<a class="btnlink" href="#atto' + a.id + '">Dati, controlli e osservazioni</a>']; }))
+      .concat(S.atti.some(function (a) { return a.tipo === "contestazione"; }) ? [] : [["Atto di contestazione delle sanzioni RW", "", '<span class="small muted">Caricatelo qui sopra quando arriva: definizione a un terzo, deduzioni o ricorso.</span>']])
+      .concat([["Avviso di accertamento", "", '<span class="small muted">Acquiescenza, adesione o ricorso: la lettura automatica arriverà con un campione.</span>']]);
     h += '<div class="panel" style="margin-top:14px"><h3 style="margin-top:0">Sequenza della pratica</h3>' + tab(["Fase", "Atto", ""], fasi.map(function (f) { return [esc(f[0]), f[1], f[2]]; }), 20);
     var sc = []; S.atti.forEach(function (a) { PR.scadenze(a.tipo, a.notifica, a.d.atto.giorniOsservazioni).forEach(function (x) { sc.push({ x: x, a: a }); }); });
     sc.sort(function (p, q) { return p.x.data < q.x.data ? -1 : 1; });
     h += sc.length ? "<h4>Scadenze</h4>" + tab(["Scadenza", "Giorni", "Adempimento"], sc.map(function (s) { var g = giorniA(s.x.data); return ['<b style="color:var(--' + (g < 0 ? "muted" : g <= 10 ? "hi" : g <= 30 ? "mid" : "ok") + ')">' + it(s.x.data) + "</b>" + (s.x.prorogata ? ' <span class="small">(termine del ' + it(s.x.nominale) + ", festivo)</span>" : ""), g < 0 ? "scaduta" : g, esc(s.x.voce)]; }), 20) : '<p class="small muted">Indicate la data di notifica di ogni atto per avere le scadenze.</p>';
     h += "</div>";
-    S.atti.forEach(function (a) { h += sezioneSchema(a); });
+    S.atti.forEach(function (a) { h += a.tipo === "contestazione" ? sezioneContestazione(a) : sezioneSchema(a); });
     return h;
   }
   function sezioneSchema(a) {
@@ -1373,6 +1418,24 @@
       '<label class="f"><span class="t">Luogo e data delle osservazioni</span><span class="row"><input type="text" data-att="' + a.id + '" data-k="citta" value="' + esc(a.citta) + '" style="width:140px"><input type="date" data-att="' + a.id + '" data-k="data" value="' + esc(a.data) + '"></span></label></div>' +
       '<p class="small">Contribuente nelle osservazioni: ' + esc(S.quest.cliente.nome || "da indicare") + (S.quest.cliente.cf ? " · " + esc(S.quest.cliente.cf) : "") + ' (dati del cliente nella scheda <button type="button" class="btnlink" data-tab="' + VISTE.indexOf("questionario") + '">Questionario AdE</button>).</p>';
     return h + "</div>";
+  }
+  function sezioneContestazione(a) {
+    var d = a.d, A = d.atto, op = PR.opzioniContestazione(d, a.nostri, a.notifica);
+    var h = '<div class="panel" id="atto' + a.id + '" style="margin-top:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Atto di contestazione n. ' + esc(A.numero || "") + " · anni " + esc((A.anni || []).join(", ")) + '</h3><div class="toolbar"><button type="button" class="btn gold" data-valwd="' + a.id + '">Valutazione e opzioni in Word</button><button type="button" class="btn ghost" data-valst="' + a.id + '">Stampa / PDF</button><button type="button" class="btnlink small" data-togatto="' + a.id + '">Togli</button></div></div>' +
+      '<p class="small">' + esc(a.nome) + " · " + esc(A.ufficio || "") + (A.codiceUfficio ? " · codice ufficio " + esc(A.codiceUfficio) : "") + (A.codiceAtto ? " · codice atto " + esc(A.codiceAtto) : "") + "</p>";
+    h += '<div class="grid2"><label class="f"><span class="t">Data di notifica dell\'atto</span><input type="date" data-att="' + a.id + '" data-k="notifica" value="' + esc(a.notifica) + '">' + (op.scadenza ? '<span class="small">Termine per definizione, deduzioni o ricorso: <b>' + it(op.scadenza.data) + "</b>" + (op.scadenza.prorogata ? " (prorogato dal " + it(op.scadenza.nominale) + ")" : "") + ", con la sospensione di agosto.</span>" : "") + "</label>" +
+      '<div class="f"><span class="t">Sanzione dell\'atto</span><span class="small">Determinata ' + E(d.determinata) + (d.prospetto ? " (prospetto " + d.prospetto + ")" : "") + " · definizione a un terzo " + E(d.definizione ? d.definizione.importo : d.calcolo.definizione) + (d.speseNotifica ? " · spese di notifica " + E(d.speseNotifica) + " (non dovute con la PEC)" : "") + "</span></div></div>";
+    h += "<h4>Violazioni contestate e valori ricostruiti</h4>" + tab(["Anno", "Violazione", "n:Valore non dichiarato", "n:Sanzione minima", "n:Valore ricostruito"], d.violazioni.map(function (v) { return [v.anno, esc(v.tributo + " · " + v.norma), E(v.valore), E(v.minima), '<input class="num" type="number" step="0.01" data-nostro="' + a.id + '" data-anno="' + v.anno + '" value="' + esc(a.nostri[v.anno] != null ? a.nostri[v.anno] : "") + '" placeholder="valore RW">']; }), 20) +
+      '<p class="small">Valore ricostruito: il valore RW dell\'anno secondo la ricostruzione (si propone quello della scheda Sanzioni, se c\'è). Con i valori ricostruiti si ricalcolano sanzione, cumulo e definizione.</p>';
+    h += "<h4>Controlli sui calcoli dell'atto</h4><ul class=\"avvisi\">" + d.verifiche.map(function (v) { return '<li class="' + COLORE[v.livello] + '">' + esc(v.testo) + "</li>"; }).join("") + "</ul>";
+    h += "<h4>Le strade possibili</h4>" + tab(["Strada", "Cosa si fa", "n:Importo", "Rischio"], op.opzioni.map(function (p) { return ["<b>" + esc(p.titolo) + "</b>", esc(p.cosa), p.importo != null ? E(p.importo) : "–", esc(p.rischio)]; }), 10);
+    h += '<label class="f" style="margin-top:10px"><span class="t">La nostra valutazione <span class="muted small">(entra nella nota per il cliente)</span></span><textarea rows="3" data-att="' + a.id + '" data-k="valutazione">' + esc(a.valutazione || "") + "</textarea></label>";
+    return h + "</div>";
+  }
+  function valutazioneWord(a) {
+    var st = window.KoinlyStudio || {}, B = PR.valutazioneContestazione(a.d, { nostri: a.nostri, notifica: a.notifica, valutazione: a.valutazione, cliente: S.quest.cliente });
+    var bin = window.LumesDocx.crea(B, { titolo: "Atto di contestazione – valutazione e opzioni", autore: st.professionista, intestazione: [st.professionista, st.qualifica].filter(Boolean), piede: [[st.indirizzo, st.email].filter(Boolean).join(" · ") + (st.partitaIva ? " · P.IVA " + st.partitaIva : "")] });
+    scaricaFile("valutazione atto di contestazione " + String(a.d.atto.numero || "").replace(/\//g, "-") + ".docx", new Blob([bin], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }));
   }
   /* confronto con i calcoli dell'app per lo stesso anno: cessioni ricostruite (LIFO) e IVACA della prima scheda */
   function confrontoRicostruzione(d) {
@@ -1420,9 +1483,9 @@
     var bin = X.crea([{ nome: "Prospetto di calcolo", colonne: [44].concat(cols.map(function () { return 20; })).concat([44]), righe: righe, orizzontale: true }]);
     scaricaFile("prospetto osservazioni schema di atto " + String(d.atto.numero || "").replace(/\//g, "-") + ".xlsx", new Blob([bin], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
   }
-  function stampaOsservazioni(a) {
-    var B = PR.osservazioni(a.d, datiOss(a)), md = function (s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>"); };
-    apriStampa(intestazione("Osservazioni allo schema di atto " + (a.d.atto.numero || "")) + B.map(function (b) {
+  function stampaOsservazioni(a, blocchi, titolo) {
+    var B = blocchi || PR.osservazioni(a.d, datiOss(a)), md = function (s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>"); };
+    apriStampa(intestazione(titolo || "Osservazioni allo schema di atto " + (a.d.atto.numero || "")) + B.map(function (b) {
       if (b.t === "titolo") return '<h2 style="text-align:center">' + md(b.testo) + "</h2>";
       if (b.t === "sottotitolo") return "<h3>" + md(b.testo) + "</h3>";
       if (b.t === "elenco") return (b.numerato ? "<ol>" : "<ul style=\"list-style:none;padding-left:0\">") + b.voci.map(function (v) { return "<li>" + md(v) + "</li>"; }).join("") + (b.numerato ? "</ol>" : "</ul>");
@@ -1549,6 +1612,7 @@
     if (t.matches("[data-zfile]") && t.files[0]) { caricaReportAnno(+t.getAttribute("data-zfile"), t.files[0]); return; }
     if (t.matches("[data-atti]") && t.files.length) { caricaAtti(t.files); return; }
     if (t.matches("[data-att]")) { var at = attoDa(t.getAttribute("data-att")); if (at) at[t.getAttribute("data-k")] = t.value; render(); return; }
+    if (t.matches("[data-nostro]")) { var an = attoDa(t.getAttribute("data-nostro")); if (an) an.nostri[t.getAttribute("data-anno")] = t.value === "" ? "" : +t.value; render(); return; }
     if (t.matches("[data-tesi]")) { var ats = attoDa(t.getAttribute("data-tesi")); if (ats) ats.tesi[t.getAttribute("data-k")] = t.checked; render(); return; }
     if (t.matches("[data-dich]") && t.files.length) { caricaDichiarazioni(t.files); return; }
     if (t.matches("[data-prov]")) { var dv = S.dich.filter(function (x) { return x.id === +t.getAttribute("data-prov"); })[0], dk = t.getAttribute("data-k"); if (dv) { dv[dk] = dk === "tipo" ? t.value : t.value === "" ? "" : +t.value; if (dk === "anno") { dv.daVerificare = false; S.dich.sort(function (a, b) { return (a.anno || 0) - (b.anno || 0); }); } } render(); return; }
@@ -1577,9 +1641,12 @@
     else if (t.id === "salvaLavoro") salvaLavoro();
     else if (t.id === "etoroNeiQuadri") etoroNeiQuadri();
     else if (t.id === "stampaEtoro") stampaEtoro();
+    else if (t.closest("[data-percorso]")) { scegliPercorsoA(t.closest("[data-percorso]").getAttribute("data-percorso") || null); S.tab = 1; render(); window.scrollTo(0, 0); }
     else if (t.matches("[data-osswd]")) osservazioniWord(attoDa(t.getAttribute("data-osswd")));
     else if (t.matches("[data-ossxl]")) osservazioniExcel(attoDa(t.getAttribute("data-ossxl")));
     else if (t.matches("[data-ossst]")) stampaOsservazioni(attoDa(t.getAttribute("data-ossst")));
+    else if (t.matches("[data-valwd]")) valutazioneWord(attoDa(t.getAttribute("data-valwd")));
+    else if (t.matches("[data-valst]")) { var av = attoDa(t.getAttribute("data-valst")); stampaOsservazioni(av, PR.valutazioneContestazione(av.d, { nostri: av.nostri, notifica: av.notifica, valutazione: av.valutazione, cliente: S.quest.cliente }), "Atto di contestazione – valutazione e opzioni"); }
     else if (t.matches("[data-togatto]")) { var ta = +t.getAttribute("data-togatto"); S.atti = S.atti.filter(function (x) { return x.id !== ta; }); render(); }
     else if (t.id === "aggiungiFonte") { S.fonti.push({ id: idProv++, anno: new Date().getFullYear() - 1, descrizione: "", importo: "" }); render(); }
     else if (t.matches("[data-togfonte]")) { var tf = +t.getAttribute("data-togfonte"); S.fonti = S.fonti.filter(function (x) { return x.id !== tf; }); render(); }

@@ -4,7 +4,7 @@ Programma a codice aperto (open source), mantenuto con le donazioni in bitcoin s
 
 > Koinly Tools non è affiliato né approvato da Koinly. «Koinly» è un marchio dei rispettivi titolari, citato solo per indicare i report compatibili.
 
-Web app statica per le cripto-attività a partire dai report Koinly. Tutto gira nel browser: i file caricati non vengono salvati né inviati in rete. È pensata per essere incorporata (iframe) nella pagina del sito dello studio; `_headers` consente l'incorporamento da studiomecommercialisti.it.
+Web app statica per le cripto-attività a partire dai report Koinly. All'apertura si sceglie il percorso (la dichiarazione, rispondere all'Agenzia delle Entrate, entrambe, creare il fascicolo per i controlli): il programma mostra solo le schede e i file che servono e l'elenco dei documenti da produrre, con lo stato di ciascuno. Nel percorso «fascicolo» le risposte alle domande tipo, la dichiarazione sostitutiva, la provenienza dei fondi e la memoria si preparano in anticipo, prima di qualunque richiesta. Tutto gira nel browser: i file caricati non vengono salvati né inviati in rete. È pensata per essere incorporata (iframe) nella pagina del sito dello studio; `_headers` consente l'incorporamento da studiomecommercialisti.it.
 
 ## 1. Giorni di detenzione e IVACA
 
@@ -141,7 +141,8 @@ Scheda «Pratica AdE» (`pratica.js`): la sequenza della pratica, dall'invito o 
 - **Scadenze dalla data di notifica:** istanza di adesione (30 giorni) e osservazioni (60 giorni), prorogate al primo giorno lavorativo (sabato, domenica, festivi nazionali e Pasquetta).
 - **Osservazioni con il metodo dello studio:** i dati restano quelli dell'Ufficio e si contestano solo profili di diritto, con colonne cumulative: permute in stablecoin non rilevanti (nessuna stablecoin era un e-money token prima di MiCAR; interrogazione 5-03682; niente sanzioni per obiettiva incertezza) e aliquota del 12,50% per il 2023 e il 2024 (art. 5 c. 2 D.Lgs. 461/1997). Se ci sono le transazioni, si affianca la ricostruzione dei costi dello stesso anno.
 - **Uscite:** osservazioni in Word nello schema delle memorie dello studio (premesso che, presenta, espone, chiede, elenco dei documenti), prospetto Excel con le formule (allegato 1), stampa o PDF. Gli atti si salvano nel file di lavoro.
-- **Atto impositivo e atto di contestazione RW:** nella sequenza con le scadenze (adesione 15 giorni, ricorso o acquiescenza 60 giorni); la lettura automatica arriverà con un campione.
+- **Atto di contestazione delle sanzioni RW (art. 16 D.Lgs. 472/1997):** lettura del provvedimento di determinazione delle sanzioni (violazioni per anno con il valore non dichiarato e le misure minima e massima, prospetto A o B, cumulo materiale e giuridico, sanzione determinata, definizione a un terzo con codice 9601, codice ufficio e codice atto); controlli dei calcoli (3% per anno, cumulo giuridico = più grave × 1,5 × 1,25 a confronto con il materiale, definizione non inferiore a un terzo dei minimi); termine di 60 giorni con la sospensione di agosto; ricalcolo con i valori RW ricostruiti; strade possibili (definizione, anche a rate per le violazioni dal 1/9/2024; deduzioni difensive; ricorso) e nota «valutazione e opzioni» in Word per il cliente.
+- **Avviso di accertamento:** nella sequenza della pratica; la lettura automatica arriverà con un campione.
 
 ## 6. Guida
 

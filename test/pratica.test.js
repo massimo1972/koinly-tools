@@ -18,8 +18,8 @@ const PAGINE = [
 
 t("Tipo di atto riconosciuto dal testo", () => {
   assert.equal(P.tipoAtto(PAGINE.map((p) => p.text).join("\n")), "schema");
-  assert.equal(P.tipoAtto("AVVISO DI ACCERTAMENTO N. X"), "avviso");
-  assert.equal(P.tipoAtto("ATTO DI CONTESTAZIONE n. 1"), "contestazione");
+  assert.equal(P.tipoAtto("AVVISO DI ACCERTAMENTO N. X1"), "avviso");
+  assert.equal(P.tipoAtto("ATTO DI CONTESTAZIONE N. T00CO1\nnelle avvertenze: avviso di accertamento"), "contestazione");
   assert.ok(P.leggiSchema([{ n: 1, text: "Fattura n. 12" }]).errore);
 });
 t("Intestazione: Ufficio, PEC, numero, anno, invito, funzionario; contribuente solo come proposta", () => {
@@ -75,5 +75,41 @@ t("Osservazioni: struttura dello studio, importi e richieste coerenti con il pro
   assert.ok(/invito n\. TQ1I00001\/2026, notificato il 10\/03\/2026/.test(testo));
   const tab = B.filter((b) => b.t === "tabella")[0]; assert.equal(tab.intest.length, 4);
   assert.equal(P.num(4576.52), "4.576,52"); assert.equal(P.num(-678.24), "-678,24");
+});
+// atto di contestazione inventato (struttura del modello dell'Agenzia, testo come lo estrae pdf.js)
+const TC = (p) => "Pagina " + p + " di 4\nDIREZIONE PROVINCIALE DI MILANO - UFFICIO CONTROLLI\nATTO DI CONTESTAZIONE N. T00COXX00001/2026 Codice fiscale contribuente BNCLRA85M41F205X\n_______________________________________________\nGli importi sono espressi in Euro\n";
+const CONT = [
+  { n: 1, text: TC(1) + "LA DIREZIONE PROVINCIALE DI MILANO - UFFICIO CONTROLLI\nAVVISA\nLa signora BIANCHI LAURA\ncodice fiscale BNCLRA85M41F205X\nDi aver proceduto al controllo della sua posizione fiscale relativamente agli anni\n2023, 2024.\n" },
+  { n: 2, text: TC(2) + "PROVVEDIMENTO DI DETERMINAZIONE DELLE SANZIONI\nVIOLAZIONI ACCERTATE SANZIONI PREVISTE\nMINIMA MASSIMA\nANNO DI COMPETENZA 2023\n01 Irpef - OMESSA INDICAZIONE NELLA DICH. DEI REDDITI,\nDI INVESTIMENTI O ALTRE ATT. ESTERE DI NATURA\nFINANZIARIA CHE PRODUCONO REDDITI IMPONIBILI IN ITALIA,\nDETENUTI NEL PERIODO D'IMPOSTA\nIMPOSTA 20.000,00\na) ART.5 C.2, D.L. N. 167/1990 CONV IN L. N. 227/1990 600,00 3.000,00\nSANZIONE PECUNIARIA DAL 3% AL 15% DEGLI IMPORTI NON\nDICHIARATI\nANNO DI COMPETENZA 2024\n02 Irpef - OMESSA INDICAZIONE NELLA DICH. DEI REDDITI,\nDI INVESTIMENTI O ALTRE ATT. ESTERE DI NATURA\nFINANZIARIA CHE PRODUCONO REDDITI IMPONIBILI IN ITALIA,\nDETENUTI NEL PERIODO D'IMPOSTA\nIMPOSTA 30.000,00\na) ART.5 C.2, D.L. N. 167/1990 CONV IN L. N. 227/1990 900,00 4.500,00\nSANZIONE PECUNIARIA DAL 3% AL 15% DEGLI IMPORTI NON\nDICHIARATI\n" },
+  { n: 3, text: TC(3) + "PROSPETTO A (violazioni per le quali si applica il cumulo giuridico)\n| Violazioni | Sanzioni applicabili |\n|01 Irpef | 600,00|\n|02 Irpef | 900,00|\n| Cumulo materiale 1.500,00|\n- sanzione per la violazione piu' grave 900,00\n- aumento del 50% - articolo 12 comma 5, del D.Lgs.n.472/97 450,00\n- sanzioni base 1.350,00\n- aumento del 25% - articolo 12 comma 1 e 2, del D.Lgs.n.472/97 337,50\n- Cumulo giuridico 1.687,50\nDETERMINA\n- La sanzione amministrativa pecuniaria di EURO 1.500,00 per le violazioni\nindicate nel prospetto A.\n" },
+  { n: 4, text: TC(4) + "AVVERTENZE\nSi riepilogano le somme dovute per la definizione:\n| Descrizione tributo |Codice | Anno di | Importo |\n| Sanzioni di cui al Prosp. A (*) | 9601 | 2024 | 500,00|\n| Spese di notifica (#) | 9400 | 2024 | 8,75|\n(*) La somma dovuta a titolo di sanzioni e' pari ad un terzo di Euro 1.500,00.\nMODALITA' DI PAGAMENTO\n| Sanzioni di cui al Prosp. A | 9601 | 2024 | 500,00|\nFunzionario referente al quale rivolgersi per informazioni:\nROSSI PAOLO\n- il Codice Ufficio : T00\n- il Codice Atto : 00000000001\n" }
+];
+t("Atto di contestazione RW: violazioni per anno, cumulo materiale e giuridico, definizione a 1/3 (la tabella del fac-simile non si somma)", () => {
+  assert.equal(P.tipoAtto(CONT.map((p) => p.text).join("\n")), "contestazione");
+  const d = P.leggiContestazione(CONT);
+  assert.deepEqual(d.atto.anni, [2023, 2024]); assert.equal(d.atto.codiceUfficio, "T00"); assert.equal(d.atto.codiceAtto, "00000000001"); assert.equal(d.atto.numero, "T00COXX00001/2026");
+  assert.deepEqual(d.violazioni.map((v) => [v.anno, v.valore, v.minima, v.da, v.rw]), [[2023, 20000, 600, 0.03, true], [2024, 30000, 900, 0.03, true]]);
+  assert.equal(d.prospetto, "A"); assert.equal(d.cumuloMateriale, 1500); assert.equal(d.cumuloGiuridico, 1687.5); assert.equal(d.determinata, 1500);
+  assert.equal(d.definizione.importo, 500); assert.equal(d.speseNotifica, 8.75);
+  assert.equal(d.calcolo.giuridico, 1687.5); assert.equal(d.calcolo.sanzione, 1500); assert.equal(d.calcolo.definizione, 500);
+  assert.ok(d.verifiche.filter((v) => v.livello === "rosso").length === 0);
+});
+t("Calcolo delle sanzioni RW: cumulo giuridico più favorevole e minimo della definizione", () => {
+  const c = P.calcoloContestazione([{ anno: 2021, valore: 10000, tributo: "Irpef" }, { anno: 2022, valore: 10000, tributo: "Irpef" }, { anno: 2023, valore: 10000, tributo: "Irpef" }, { anno: 2024, valore: 100000, tributo: "Irpef" }]);
+  assert.equal(c.materiale, 3900); assert.equal(c.giuridico, 5625); assert.equal(c.applicato, "materiale");
+  const g = P.calcoloContestazione([2019, 2020, 2021, 2022, 2023].map((a) => ({ anno: a, valore: 50000, tributo: "Irpef" })));
+  assert.equal(g.materiale, 7500); assert.equal(g.giuridico, 2812.5); assert.equal(g.sanzione, 2812.5); assert.equal(g.definizione, 937.5);
+});
+t("Termine di 60 giorni con la sospensione feriale di agosto", () => {
+  assert.equal(P.sessantaGiorni("2026-07-10"), "2026-10-09");
+  assert.equal(P.sessantaGiorni("2026-10-26"), "2026-12-25");
+  assert.equal(P.scadenze("contestazione", "2026-10-26")[0].data, "2026-12-28");
+});
+t("Strade dopo la contestazione: definizione, deduzioni con i valori ricostruiti, ricorso; nota per il cliente", () => {
+  const d = P.leggiContestazione(CONT), o = P.opzioniContestazione(d, { 2024: 10000 }, "2026-07-10");
+  assert.equal(o.scadenza.data, "2026-10-09"); assert.ok(o.rate);
+  assert.equal(o.opzioni[0].importo, 500); assert.equal(o.ricalcolo.materiale, 900); assert.equal(o.opzioni[1].importo, 300);
+  const B = P.valutazioneContestazione(d, { nostri: { 2024: 10000 }, notifica: "2026-07-10", valutazione: "Consigliamo le deduzioni." });
+  assert.ok(B.some((b) => b.t === "tabella" && b.intest[0] === "Strada")); assert.ok(B.some((b) => /Consigliamo/.test(b.testo || "")));
 });
 console.log("\n" + n + " prove superate");

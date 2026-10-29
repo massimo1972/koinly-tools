@@ -90,3 +90,8 @@ table.periodi{font-size:.8rem;margin:6px 0 4px}
 .sem.giallo{color:var(--mid);background:var(--mid-bg)}
 .sem.rosso{color:var(--hi);background:var(--hi-bg)}
 .avvisi li.mid{color:var(--mid)}
+/* scelta del percorso iniziale */
+.percorso .cards{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.card.scelta{text-align:left;cursor:pointer;font:inherit;color:inherit;border:1px solid var(--line);background:var(--field)}
+.card.scelta:hover,.card.scelta:focus-visible{border-color:var(--gold);outline:none}
+.card.scelta .v{font-size:1.05rem;margin-bottom:6px}
