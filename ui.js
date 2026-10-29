@@ -329,18 +329,17 @@
   function plusvalenzeAnno(a) { var x = rtAnno(a); return Math.round(x.corrispettivi) - Math.round(x.costi); } // in euro, come nei righi del quadro RT
   function calcoliSanzioni() {
     return S.sanz.anni.map(function (a) {
-      var r = Z.calcolaAnno({ anno: a.anno, stato: a.stato, valoreRw: +a.valoreRw || 0, ivaca: +a.ivaca || 0, plusvalenze: plusvalenzeAnno(a), pagamento: S.sanz.pagamento });
+      var r = Z.calcolaAnno({ anno: a.anno, stato: a.stato, valoreRw: +a.valoreRw || 0, ivaca: +a.ivaca || 0, plusvalenze: plusvalenzeAnno(a), pagamento: S.sanz.pagamento,
+        controlli: a.controlli || "nessuno", esteri: !!a.esteri, riduzione: !!a.riduzione, fraudolente: !!a.fraudolente, invio: a.invio || "" });
       r.dati = a; return r;
     });
   }
   function tabellaAnno(r) {
-    if (!r.ravvedibile && r.ravvedimentoValido) return tabellaVoci(r) +
-      '<h4 style="margin:14px 0 6px">Confronto: sanzioni da ravvedimento valido</h4><p class="small" style="margin:0 0 6px">Importi se il ravvedimento fosse ammesso, come per una dichiarazione presentata da integrare.</p>' + tabellaVoci(r.ravvedimentoValido) +
-      '<table class="det" style="margin-top:10px"><thead><tr><th>Sintesi delle sanzioni</th><th class="n">Importo</th></tr></thead><tbody>' +
-      "<tr><td>Sanzioni minime per omessa dichiarazione (senza riduzioni)</td><td class=\"n\">" + E(r.sanzionePiena) + "</td></tr>" +
-      "<tr><td>Sanzioni ridotte a 1/3 dopo la contestazione</td><td class=\"n\">" + E(r.sanzioneUnTerzo) + "</td></tr>" +
-      "<tr><td>Sanzioni da ravvedimento valido</td><td class=\"n\">" + E(r.ravvedimentoValido.sanzioni) + "</td></tr>" +
-      (r.tardiva ? "<tr><td>Dichiarazione presentata ora, oltre 90 giorni e prima dei controlli: 75% delle imposte più RW (art. 1 c. 1-bis D.Lgs. 471/1997)</td><td class=\"n\">" + E(r.tardiva.sanzione) + "</td></tr>" : "") + "</tbody></table>" + noteAnno(r);
+    if (!r.ravvedibile) return tabellaVoci(r) +
+      '<table class="det" style="margin-top:10px"><thead><tr><th>Versioni (' + (r.precluso ? "ravvedimento precluso" : "dichiarazione omessa, non ravvedibile") + ')</th><th class="n">Sanzioni</th></tr></thead><tbody>' +
+      r.versioni.map(function (v) { return "<tr" + (v.principale ? ' class="tot"' : "") + "><td>" + (v.principale ? "<b>Versione principale</b> · " : "") + esc(v.titolo) + '</td><td class="n">' + E(v.sanzione) + "</td></tr>"; }).join("") +
+      "<tr><td>Per confronto: ravvedimento valido (dichiarazione presentata da integrare, senza controlli)</td><td class=\"n\">" + E(r.ravvedimentoValido.sanzioni) + "</td></tr></tbody></table>" +
+      '<details style="margin-top:8px"><summary class="small">Dettaglio del ravvedimento valido</summary>' + tabellaVoci(r.ravvedimentoValido) + "</details>" + noteAnno(r);
     return tabellaVoci(r) + confrontoMisure(r) + noteAnno(r);
   }
   /* dal 1/9/2024 (art. 1 D.Lgs. 471/1997): sanzione sulle imposte con il ravvedimento (integrativa, c. 2-bis) e se l'infedeltà è contestata (c. 2) */
@@ -352,7 +351,7 @@
       "<tr><td>Infedele dichiarazione contestata dall'Agenzia: 70%, minimo 150 € (art. 1 c. 2), senza riduzioni</td><td class=\"n\">" + E(r.contestata) + "</td></tr></tbody></table>";
   }
   function noteAnno(r) {
-    return r.note.length ? '<ul class="avvisi" style="margin-top:6px">' + r.note.map(function (n) { return '<li class="' + (/non è tecnicamente possibile|contestata/.test(n) ? "hi" : "") + '">' + esc(n) + "</li>"; }).join("") + "</ul>" : "";
+    return ((r.avvisi || []).length ? '<ul class="avvisi" style="margin-top:6px">' + r.avvisi.map(function (n) { return '<li class="hi"><b>' + esc(n) + "</b></li>"; }).join("") + "</ul>" : "") + (r.note.length ? '<ul class="avvisi" style="margin-top:6px">' + r.note.map(function (n) { return '<li class="' + (/non è possibile|precluso/.test(n) ? "hi" : "") + '">' + esc(n) + "</li>"; }).join("") + "</ul>" : "");
   }
   function tabellaVoci(r) {
     var righe = r.voci.filter(function (v) { return v.imposta || v.sanzione || v.interessi; }).map(function (v) {
@@ -360,7 +359,7 @@
     }).join("");
     var tot = r.ravvedibile
       ? '<tr class="tot"><td>Totale da versare con il ravvedimento</td><td class="n">' + E(r.imposte) + '</td><td class="n">' + E(r.sanzioni) + '</td><td class="n">' + E(r.interessi) + '</td></tr><tr class="tot"><td colspan="3">Totale</td><td class="n">' + E(r.totale) + "</td></tr>"
-      : '<tr class="tot"><td>Sanzioni minime per omessa dichiarazione</td><td></td><td class="n">' + E(r.sanzionePiena) + '</td><td></td></tr><tr class="tot"><td>Sanzioni ridotte a 1/3 (definizione dopo la contestazione)</td><td></td><td class="n">' + E(r.sanzioneUnTerzo) + '</td><td></td></tr><tr class="tot"><td colspan="3">Totale indicativo con imposte e interessi</td><td class="n">' + E(r.totale) + "</td></tr>";
+      : (function () { var v = (r.versioni || []).filter(function (x) { return x.principale; })[0]; return '<tr class="tot"><td>Versione principale: ' + esc(v ? v.titolo : "") + '</td><td></td><td class="n">' + E(r.sanzioni) + '</td><td></td></tr><tr class="tot"><td colspan="3">Totale indicativo con imposte e interessi</td><td class="n">' + E(r.totale) + "</td></tr>"; })();
     return '<table class="det"><thead><tr><th>Voce</th><th class="n">Imposta</th><th class="n">Sanzione</th><th class="n">Interessi</th></tr></thead><tbody>' + righe + tot + "</tbody></table>" +
       '<p class="small" style="margin:6px 0 0">Scadenze ' + r.anno + ": dichiarazione " + D.it(r.termini.dichiarazione) + ", saldo " + D.it(r.termini.saldo) + " · " + (r.regime === "nuovo" ? "violazione dal 1/9/2024: art. 13 D.Lgs. 472/1997 e art. 1 D.Lgs. 471/1997 nel testo del D.Lgs. 87/2024" : "violazione fino al 31/8/2024: testo previgente") +
       ". RT: plusvalenze " + E(r.rt.plusvalenze) + (r.rt.franchigia ? " − franchigia " + E(r.rt.franchigia, 0) : "") + " × " + Math.round(r.rt.aliquota * 100) + "%. " + esc(r.rt.nota) + "</p>";
@@ -377,6 +376,13 @@
         '<div class="grid2" style="margin-top:10px">' +
         '<label class="f"><span class="t">Anno d\'imposta</span><select data-za="' + a.id + '" data-k="anno">' + [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map(function (y) { return "<option" + (y === a.anno ? " selected" : "") + ">" + y + "</option>"; }).join("") + "</select></label>" +
         '<label class="f"><span class="t">Dichiarazione dei redditi</span><select data-za="' + a.id + '" data-k="stato"><option value="presentata"' + (a.stato === "presentata" ? " selected" : "") + '>Presentata senza RW/RT (si integra)</option><option value="omessa"' + (a.stato === "omessa" ? " selected" : "") + ">Omessa: non presentata, neanche per altri redditi</option></select></label>" +
+        '<label class="f"><span class="t">Controlli alla data del versamento</span><select data-za="' + a.id + '" data-k="controlli">' + Object.keys(Z.CONTROLLI).map(function (k) { return '<option value="' + k + '"' + ((a.controlli || "nessuno") === k ? " selected" : "") + ">" + Z.CONTROLLI[k].charAt(0).toUpperCase() + Z.CONTROLLI[k].slice(1) + "</option>"; }).join("") + '</select><span class="small">Con accessi o verifiche in corso il 50% dell\'integrativa (dal 1/9/2024) non spetta; PVC e schema di atto cambiano la riduzione; l\'avviso preclude il ravvedimento.</span></label>' +
+        '<div class="f"><span class="t">Casi particolari</span>' +
+          '<label class="toggle"><input type="checkbox" data-za="' + a.id + '" data-k="riduzione"' + (a.riduzione ? " checked" : "") + '><span>Maggiore imposta sotto il 3% di quella dichiarata e sotto 30.000 € (riduzione di 1/3, art. 1 c. 4)</span></label>' +
+          '<label class="toggle"><input type="checkbox" data-za="' + a.id + '" data-k="fraudolente"' + (a.fraudolente ? " checked" : "") + '><span>Documenti falsi, operazioni inesistenti o condotte fraudolente (aumento della metà, art. 1 c. 3)</span></label>' +
+          (Z.termini(a.anno).dichiarazione < "2024-09-01" ? '<label class="toggle"><input type="checkbox" data-za="' + a.id + '" data-k="esteri"' + (a.esteri ? " checked" : "") + '><span>Tesi prudenziale: aumento di 1/3 per redditi esteri (c. 8 previgente); per lo studio le cripto sono aterritoriali</span></label>' : "") +
+        "</div>" +
+        (a.stato !== "omessa" && Z.termini(a.anno).dichiarazione >= "2024-09-01" && Z.termini(a.anno).dichiarazione < "2025-09-01" ? '<label class="f"><span class="t">Dichiarazione originaria inviata il <span class="muted small">(facoltativo)</span></span><input type="date" data-za="' + a.id + '" data-k="invio" value="' + esc(a.invio || "") + '"><span class="small">Se inviata prima del 1/9/2024 si mostrano entrambe le discipline: il caso è dubbio.</span></label>' : "") +
         '<label class="f"><span class="t">Report Koinly dell\'anno</span><input type="file" accept=".pdf,.csv" data-zfile="' + a.id + '"><span class="small">' + (err ? '<span style="color:var(--hi)">' + esc(err) + "</span>" : a.nome ? esc(a.nome) : "Complete tax report (PDF) o End of year holdings (CSV)") + "</span></label>" +
         '<label class="f"><span class="t">Valore finale non dichiarato in RW <span class="muted small">(€)</span></span><input class="num" type="number" step="any" data-za="' + a.id + '" data-k="valoreRw" value="' + esc(a.valoreRw) + '"><span class="small">' + (a.fonte.valoreRw === "report" ? "Valore delle cripto al 31/12 dal report Koinly; modificabile (per esempio aggiungendo le cripto vendute nell'anno, al valore di fine detenzione)." : "Base della sanzione RW: valore finale delle cripto non dichiarate.") + "</span></label>" +
         '<label class="f"><span class="t">IVACA dovuta <span class="muted small">(€)</span></span><input class="num" type="number" step="any" data-za="' + a.id + '" data-k="ivaca" value="' + esc(a.anno < 2023 ? "" : a.ivaca) + '"' + (a.anno < 2023 ? " disabled" : "") + '><span class="small">' + (a.anno < 2023 ? "Non dovuta prima del 2023." : ivDisp != null ? '<button type="button" class="btnlink" data-usaivaca="' + a.id + '">Usa l\'IVACA calcolata nella prima pagina: ' + E(ivDisp) + "</button>" : "Dalla prima pagina (giorni di detenzione) per lo stesso anno, o a mano.") + "</span></label>" +
@@ -400,9 +406,9 @@
     var tot = calc.reduce(function (s, r) { return s + (r.totale || 0); }, 0), omesse = calc.filter(function (r) { return !r.ravvedibile; });
     var ravv = calc.filter(function (r) { return r.ravvedibile; });
     h += '<div class="cards" style="margin-top:14px">' + (ravv.length ? '<div class="card hl"><div class="k">Totale ravvedimento (imposte, sanzioni, interessi)</div><div class="v">' + E(ravv.reduce(function (s, r) { return s + r.totale; }, 0)) + "</div></div>" : "") +
-      (omesse.length ? '<div class="card"><div class="k">Anni con dichiarazione omessa: totale indicativo con sanzioni a 1/3</div><div class="v">' + E(omesse.reduce(function (s, r) { return s + r.totale; }, 0)) + "</div></div>" +
+      (omesse.length ? '<div class="card"><div class="k">Anni non ravvedibili (omessa o avviso notificato): totale indicativo della versione principale</div><div class="v">' + E(omesse.reduce(function (s, r) { return s + r.totale; }, 0)) + "</div></div>" +
         '<div class="card"><div class="k">Stessi anni con ravvedimento valido</div><div class="v">' + E(omesse.reduce(function (s, r) { return s + r.ravvedimentoValido.totale; }, 0)) + "</div></div>" : "") + "</div>" +
-      '<p class="metodi">Sanzione RW: 3% (minimo) del valore non dichiarato, art. 5 c. 2 DL 167/1990, ridotta con il ravvedimento. Imposte (IVACA e RT): sanzione per infedele dichiarazione ridotta, che assorbe quella per omesso versamento (circ. 42/E/2016), più interessi legali giorno per giorno dalla scadenza del saldo. Il ravvedimento è precluso dalla notifica di atti di liquidazione o accertamento (art. 13 c. 1-ter D.Lgs. 472/1997). Dal 1/1/2027 entra in vigore il Testo unico sanzioni (D.Lgs. 173/2024).</p>';
+      '<p class="metodi">Sanzione RW: 3% (minimo) del valore non dichiarato, art. 5 c. 2 DL 167/1990, ridotta con il ravvedimento. Imposte (IVACA e RT): sanzione per infedele dichiarazione ridotta, che assorbe quella per omesso versamento (circ. 42/E/2016), più interessi legali giorno per giorno dalla scadenza del saldo. Il ravvedimento è precluso dalla notifica di atti di liquidazione o accertamento (art. 13 c. 1-ter D.Lgs. 472/1997); con accessi, PVC o schema di atto le riduzioni cambiano. Disciplina applicata secondo la data di commissione della violazione (art. 5 D.Lgs. 87/2024): testo previgente fino al 31/8/2024, nuovo testo dal 1/9/2024. Dal 1/1/2027 entra in vigore il Testo unico sanzioni (D.Lgs. 173/2024): i riferimenti andranno aggiornati. I calcoli sono un supporto al professionista e vanno verificati sul caso concreto.</p>';
     return h;
   }
   function stampaSanzioni() {
@@ -1157,7 +1163,7 @@
     return '<table class="det f24"><thead><tr><th>Sezione</th><th>Codice tributo</th><th>Rateazione / mese rif.</th><th>Anno di riferimento</th><th class="n">Importi a debito versati</th><th>Voce</th></tr></thead><tbody>' +
       f.righe.map(function (x) { return "<tr><td>Erario</td><td><b>" + x.codice + "</b></td><td>" + (x.rateazione || "") + "</td><td>" + x.anno + '</td><td class="n">' + E(x.importo) + "</td><td class=\"small\">" + esc(x.descrizione) + "</td></tr>"; }).join("") +
       '<tr class="tot"><td colspan="4">Totale (saldo) · data di versamento ' + D.it(S.sanz.pagamento) + '</td><td class="n">' + E(f.totale) + "</td><td></td></tr></tbody></table>" +
-      (f.esclusi.length ? '<p class="small" style="color:var(--hi)">Anni con dichiarazione omessa non inseriti (' + f.esclusi.join(", ") + "): il ravvedimento non è possibile; è opportuno attendere la contestazione dell'Agenzia.</p>" : "") +
+      (f.esclusi.length ? '<p class="small" style="color:var(--hi)">Anni con dichiarazione omessa non inseriti (' + f.esclusi.join(", ") + "): ravvedimento non possibile (dichiarazione omessa o avviso notificato). Le sanzioni della versione principale si versano con i codici da verificare.</p>" : "") +
       '<p class="small">Codici: 1727 imposta sulle cripto-attività, saldo (Ris. 36/E/2023 e 10/E/2024); 1715 imposta sostitutiva su plusvalenze da cripto-attività, quadro RT (Ris. 36/E/2023); 8945 sanzione e 1945 interessi da ravvedimento su imposte sui redditi e sostitutive (Ris. 12/E/2023: per l\'imposta sulle cripto-attività in assenza di codici specifici); 8911 sanzioni per altre violazioni (quadro RW, dichiarazione tardiva). Anno di riferimento: anno d\'imposta. Codici da ricontrollare prima del versamento.</p>';
   }
   function datiContribuente() { return '<table class="dati"><tr><td>Contribuente</td><td>' + esc(S.modelli.nome || "________________") + "</td></tr><tr><td>Codice fiscale</td><td>" + esc(S.modelli.cf || "________________") + "</td></tr></table>"; }
@@ -1426,7 +1432,8 @@
     if (t.matches("[data-zprov]")) { var zp = S.sanz.anni.filter(function (x) { return x.id === +t.getAttribute("data-zprov"); })[0]; if (zp) zp.proventi = t.checked; render(); return; }
     if (t.matches("[data-za]")) {
       var za = S.sanz.anni.filter(function (x) { return x.id === +t.getAttribute("data-za"); })[0], zk = t.getAttribute("data-k");
-      za[zk] = zk === "anno" ? +t.value : zk === "stato" || zk === "fonteRT" ? t.value : t.value === "" ? "" : +t.value; if (zk !== "anno" && zk !== "stato" && zk !== "fonteRT") za.fonte[zk] = "mano";
+      var testo = ["stato", "fonteRT", "controlli", "invio"].indexOf(zk) >= 0;
+      za[zk] = t.type === "checkbox" ? t.checked : zk === "anno" ? +t.value : testo ? t.value : t.value === "" ? "" : +t.value; if (zk !== "anno" && !testo && t.type !== "checkbox") za.fonte[zk] = "mano";
       if (zk === "anno") S.sanz.anni.sort(function (a, b) { return a.anno - b.anno; });
       render(); return;
     }

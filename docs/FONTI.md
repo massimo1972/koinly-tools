@@ -28,6 +28,9 @@ Legenda: **[C]** verificato su fonte primaria · **[S]** fonte secondaria · **[
 | Infedele dichiarazione | 90%-180% (min. 150 €) [S] | 70% (min. 150 €) [C] |
 | Infedele con integrativa prima dei controlli (art. 1 c. 2-bis, nuovo) | – | 25% × 2 = 50%, poi ridotta con il ravvedimento [C] |
 | Omessa presentata oltre 90 giorni prima dei controlli (art. 1 c. 1-bis, nuovo) | – | 25% × 3 = 75% (senza imposte 250-1.000 €) [C] |
+| Omessa presentata entro il termine della dichiarazione dell'anno successivo, prima dei controlli (art. 1 c. 1 secondo periodo, previgente) | 60%-120% (min. 200 €) [S] | – |
+| Ravvedimento dopo PVC / schema di atto (art. 13 c. 1 lett. b-ter, b-quater, b-quinquies D.Lgs. 472/1997) | 1/5 dopo il PVC [S] | 1/6 schema senza PVC, 1/5 dopo il PVC, 1/4 schema dopo il PVC [S] |
+| Quadro RW nella dichiarazione presentata entro 90 giorni (art. 5 c. 2 DL 167/1990) | 258 € [S] | 258 € [S] |
 | Omessa dichiarazione | 120%-240% (min. 250 €) [S] | 120% (min. 250 €) [C] |
 | Omesso versamento | 30% [S] | 25% [C] |
 | Omesso versamento con ritardo ≤ 90 giorni | 15% [S] | 12,5% [C] |
