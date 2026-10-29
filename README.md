@@ -39,6 +39,7 @@ Uscite: tabella a video con i periodi; Excel (fogli «Righi RW» e «Riepilogo p
   - interessi, reward e airdrop: valore del giorno;
   - trasferimenti tra wallet propri: nessun effetto, e quelli non abbinati da Koinly sono riconosciuti in automatico.
 - **eToro e broker esteri:** lettura del rendiconto eToro in PDF (posizioni chiuse per categoria, trasferimenti al wallet cripto con il costo d'origine, dividendi, airdrop, portafoglio a inizio e fine anno per strumento, saldo); calcolo per anno dei quadri RT (sezione al 26%, minusvalenze riportate per quattro anni), RM (dividendi al lordo, per Stato) e RW (codici 1, 2, 9, 14/21 con IVAFE e IVACA) e dei codici F24; i valori RT e RM si riportano nella scheda dei quadri, dove si possono anche inserire a mano.
+- **Altri broker esteri** (Trade Republic, Degiro, Interactive Brokers, Revolut e ogni altro intermediario): modello CSV generico da scaricare nel riquadro «Rendiconti», una riga per voce, importi in euro: cessioni (corrispettivo e costo), dividendi, proventi di OICR, interessi e altri redditi di capitale (lordo, ritenuta estera, Stato), posizioni e liquidità per il quadro RW (periodo nell'anno, valore iniziale e finale, Stato, codice RW facoltativo). I quadri RT al 26% (con le minusvalenze riportate per quattro anni), RM per tipo e Stato e RW con IVAFE e IVACA si calcolano con lo stesso motore di eToro (`estero.js`) e si riportano nella scheda dei quadri.
 - **Operazioni da verificare e richiesta al cliente:**
   - ogni deposito o prelievo verso wallet non collegati riporta degli indizi: destinazione e hash assenti, probabile invio di prova, uscita di somme appena ricevute in prestito (anche se il prestito è in valuta e viene subito cambiato in stablecoin);
   - il pulsante «Richiesta di chiarimenti al cliente» stampa le operazioni filtrate non ancora corrette, con le domande e i documenti da chiedere.
@@ -84,6 +85,7 @@ Inoltre:
 
 - **Attribuzione** di ogni wallet o indirizzo («mio», «non mio», «piattaforma», «da chiarire»).
 - **Dichiarazione sostitutiva di atto notorio** (art. 47 DPR 445/2000) sui soli wallet dichiarati «mio».
+- **Verifica della provenienza dei fondi** (`provenienza.js`), nel questionario e nel fascicolo stampato, con semaforo per anno e complessivo: verde = provenienza dimostrata, giallo = compatibile ma con avvisi, rosso = non dimostrata. Si confronta in modo cumulato il denaro entrato nelle piattaforme (versamenti o acquisti in valuta, al netto dei rientri) con i redditi netti delle dichiarazioni dei redditi caricate (Redditi PF, 730 o CU: dal PDF si legge solo l'anno d'imposta; reddito complessivo e imposte si inseriscono a mano) e con le altre fonti documentate (eredità, donazioni, vendite, TFR). Avvisi: impiego oltre il 70% dei redditi netti, dichiarazione dell'anno mancante, estratti conto mancanti o versamenti non ritrovati, depositi di cripto da wallet non collegati non documentati (rosso da 500 €) o caricati a costo zero. Le dichiarazioni sono elencate tra gli allegati della memoria.
 - **Memoria finale:** fonti, metodo, correzioni con i motivi, differenze anno per anno rispetto ai report Koinly senza modifiche.
 
 ## 4. Sanzioni RW e RT
@@ -141,7 +143,11 @@ Scheda «Guida» per il cliente (`guida.js`): quali file Koinly scaricare, come 
 | `detenzione.js` | Transazioni, giorni di detenzione, periodi, token sospetti, riscontri |
 | `ivaca.js` | Valori dei periodi e imposta |
 | `banca.js` | Lettura anonimizzata degli estratti conto e riscontro con Koinly |
+| `etoro.js` | Lettura del rendiconto eToro in PDF e passaggio dei dati alla forma comune dei broker esteri |
+| `estero.js` | Motore comune dei broker esteri (quadri RT al 26%, RM e RW con IVAFE e IVACA) e lettura del modello CSV generico |
+| `report.js` | Lettura degli altri report Koinly (Income, Expenses, Gifts/Lost, Other gains) |
 | `costi.js` | Costi di carico LIFO globali dall'origine, abbinamento dei trasferimenti, correzioni dello studio |
+| `provenienza.js` | Verifica della provenienza dei fondi con semaforo; anno d'imposta delle dichiarazioni dei redditi |
 | `questionario.js` | Elementi di risposta al questionario dell'Agenzia, wallet, chiavi pubbliche e indirizzi |
 | `sanzioni.js` | Sanzioni, frazioni di ravvedimento, interessi legali, scadenze per anno |
 | `studio.js` | Dati dello studio per la stampa |

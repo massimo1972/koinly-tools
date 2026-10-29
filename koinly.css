@@ -83,3 +83,10 @@ table.periodi{font-size:.8rem;margin:6px 0 4px}
   #resoconto .avvisi li.hi{color:#b42318}
   body:not(.in-stampa) header.band nav,body:not(.in-stampa) .toolbar,body:not(.in-stampa) .slots,body:not(.in-stampa) .noprint{display:none!important}
 }
+/* semaforo della verifica della provenienza dei fondi */
+.sem{display:inline-flex;align-items:center;gap:6px;font-weight:600;border-radius:999px;padding:2px 10px;font-size:.85rem;white-space:nowrap}
+.sem::before{content:"";width:10px;height:10px;border-radius:50%;background:currentColor}
+.sem.verde{color:var(--ok);background:var(--ok-bg)}
+.sem.giallo{color:var(--mid);background:var(--mid-bg)}
+.sem.rosso{color:var(--hi);background:var(--hi-bg)}
+.avvisi li.mid{color:var(--mid)}
