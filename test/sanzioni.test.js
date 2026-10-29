@@ -51,4 +51,15 @@ t("Dichiarazione omessa ma entro 90 giorni: tardiva con 1/10 di 250 € e ravved
   const r = Z.calcolaAnno({ anno: 2024, stato: "omessa", valoreRw: 1000, ivaca: 50, plusvalenze: 0, pagamento: "2025-12-15" });
   assert.equal(r.ravvedibile, true); near(voce(r, /tardiva/).sanzione, 25); assert.ok(!voce(r, /RW/));
 });
+t("Dal 1/9/2024: integrativa al 50% (c. 2-bis), confronto con l'infedele contestata al 70% minimo 150 € (c. 2); prima del 2024 nessun confronto", () => {
+  const r = Z.calcolaAnno({ anno: 2023, stato: "presentata", valoreRw: 0, ivaca: 140, plusvalenze: 5000, pagamento: PAG });
+  near(r.contestata, (140 + 780) * 0.7); assert.ok(r.note.some((x) => /70%, minimo 150/.test(x)));
+  near(Z.calcolaAnno({ anno: 2023, stato: "presentata", valoreRw: 0, ivaca: 100, plusvalenze: 0, pagamento: PAG }).contestata, 150);
+  assert.ok(Z.calcolaAnno({ anno: 2022, stato: "presentata", valoreRw: 1000, ivaca: 0, plusvalenze: 10000, pagamento: PAG }).contestata == null);
+});
+t("Dichiarazione omessa dal 1/9/2024: presentazione oltre 90 giorni prima dei controlli al 75% (c. 1-bis)", () => {
+  const r = Z.calcolaAnno({ anno: 2023, stato: "omessa", valoreRw: 70000, ivaca: 140, plusvalenze: 5000, pagamento: PAG });
+  near(r.tardiva.sanzione, (140 + 780) * 0.75 + 70000 * 0.03); assert.ok(r.note.some((x) => /c\. 1-bis/.test(x)));
+  assert.ok(Z.calcolaAnno({ anno: 2022, stato: "omessa", valoreRw: 70000, ivaca: 0, plusvalenze: 5000, pagamento: PAG }).tardiva == null);
+});
 console.log("\n" + n + " prove superate");

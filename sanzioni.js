@@ -6,8 +6,11 @@
      della dichiarazione; b) 1/8 entro il termine della dichiarazione dell'anno in cui è commessa la violazione; b-bis) 1/7:
      previgente entro il termine della dichiarazione dell'anno successivo, nuovo testo oltre il termine della lettera b);
      b-ter) previgente 1/6 oltre tale termine (nel nuovo testo 1/6 solo dopo lo schema d'atto).
-   - art. 1 D.Lgs. 471/1997: infedele dal 90% (previgente) / 70% min. 150 € (nuovo); con integrativa (c. 2-bis, nuovo) 25% × 2 = 50%;
-     omessa dal 120% min. 250 € (previgente 120%-240%).
+   - art. 1 D.Lgs. 471/1997: infedele dal 90% (previgente) / 70% min. 150 € (nuovo, c. 2, se contestata); con integrativa presentata
+     prima di accessi, ispezioni e verifiche (c. 2-bis, nuovo) 25% × 2 = 50%, la misura che si applica al ravvedimento;
+     omessa dal 120% min. 250 € (previgente 120%-240%); nuovo c. 1-bis: dichiarazione presentata oltre 90 giorni, entro i termini
+     dell'accertamento e prima di accessi, ispezioni e verifiche, 25% × 3 = 75% delle imposte (se non dovute, da 250 a 1.000 €).
+     Testo verificato su def.finanze.it (art. 1 in vigore dal 29/06/2024) il 29/10/2026.
    - art. 13 D.Lgs. 471/1997: omesso versamento 30% (previgente) / 25% (nuovo); metà entro 90 giorni; entro 15 giorni 1/15 per giorno.
    - art. 5 c. 2 DL 167/1990: RW omesso o infedele dal 3% al 15% degli importi non dichiarati (per le cripto niente raddoppio
      black list, circ. 30/E/2023).
@@ -122,6 +125,12 @@
       // per confronto: le sanzioni se il ravvedimento fosse valido (come per una dichiarazione presentata da integrare)
       out.ravvedimentoValido = calcolaAnno({ anno: d.anno, stato: "presentata", valoreRw: valoreRw, ivaca: ivaca, plusvalenze: plus, pagamento: pag });
       out.note.push("Per confronto, con un ravvedimento valido le sanzioni sarebbero " + fmt(out.ravvedimentoValido.sanzioni) + " (totale con imposte e interessi " + fmt(out.ravvedimentoValido.totale) + ").");
+      if (regime === "nuovo") {
+        // art. 1 c. 1-bis D.Lgs. 471/1997 (D.Lgs. 87/2024): presentazione oltre 90 giorni prima dei controlli, 25% × 3 sulle imposte
+        var tard = imposte > 0 ? imposte * 0.75 : 250, intTard = out.voci.reduce(function (a, v) { return a + (v.interessi || 0); }, 0);
+        out.tardiva = { sanzione: tard + omRw, totale: imposte + intTard + tard + omRw };
+        out.note.push("Dal 1/9/2024 la dichiarazione omessa si può ancora presentare oltre i 90 giorni, entro i termini dell'accertamento e prima di accessi, ispezioni, verifiche o altre attività di accertamento: la sanzione sulle imposte è il 75% (25% × 3, art. 1 c. 1-bis D.Lgs. 471/1997)" + (imposte > 0 ? "" : "; senza imposte dovute da 250 a 1.000 €") + ", cioè " + fmt(tard) + ", più " + fmt(omRw) + " per il quadro RW: totale con imposte e interessi " + fmt(out.tardiva.totale) + ". Se e come questa sanzione si riduca con il ravvedimento è da verificare.");
+      }
       return chiudi(out);
     }
     out.ravvedibile = true;
@@ -153,6 +162,11 @@
       out.voci.push({ voce: x[0] + " · " + testoInf + ", ridotta a " + fd.testo, imposta: x[1], sanzione: s, interessi: interessi(x[1], T.saldo, pag).importo, frazione: fd });
     });
     if (valoreRw > 0) out.voci.push({ voce: "Quadro RW · 3% (minimo, art. 5 c. 2 DL 167/1990) di " + fmt(valoreRw) + ", ridotto a " + fd.testo, imposta: 0, sanzione: valoreRw * 0.03 * fd.f, interessi: 0, frazione: fd });
+    if (regime === "nuovo" && imposte > 0) {
+      // per confronto: infedele contestata dall'Agenzia, art. 1 c. 2 nel nuovo testo (70%, minimo 150 €), senza le riduzioni del ravvedimento
+      out.contestata = Math.max(imposte * 0.7, 150);
+      out.note.push("Con l'integrativa presentata prima di accessi, ispezioni o verifiche la sanzione è il 50% delle imposte (art. 1 c. 2-bis D.Lgs. 471/1997), ridotto con il ravvedimento. Se invece l'infedeltà fosse contestata dall'Agenzia si applicherebbe il 70%, minimo 150 € (art. 1 c. 2): " + fmt(out.contestata) + " sulle imposte, oltre alla sanzione RW.");
+    }
     return chiudi(out);
   }
   function chiudi(out) {

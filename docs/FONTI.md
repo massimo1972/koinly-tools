@@ -26,6 +26,8 @@ Legenda: **[C]** verificato su fonte primaria · **[S]** fonte secondaria · **[
 | Violazione | Fino al 31/8/2024 | Dal 1/9/2024 |
 |---|---|---|
 | Infedele dichiarazione | 90%-180% (min. 150 €) [S] | 70% (min. 150 €) [C] |
+| Infedele con integrativa prima dei controlli (art. 1 c. 2-bis, nuovo) | – | 25% × 2 = 50%, poi ridotta con il ravvedimento [C] |
+| Omessa presentata oltre 90 giorni prima dei controlli (art. 1 c. 1-bis, nuovo) | – | 25% × 3 = 75% (senza imposte 250-1.000 €) [C] |
 | Omessa dichiarazione | 120%-240% (min. 250 €) [S] | 120% (min. 250 €) [C] |
 | Omesso versamento | 30% [S] | 25% [C] |
 | Omesso versamento con ritardo ≤ 90 giorni | 15% [S] | 12,5% [C] |

@@ -339,8 +339,17 @@
       '<table class="det" style="margin-top:10px"><thead><tr><th>Sintesi delle sanzioni</th><th class="n">Importo</th></tr></thead><tbody>' +
       "<tr><td>Sanzioni minime per omessa dichiarazione (senza riduzioni)</td><td class=\"n\">" + E(r.sanzionePiena) + "</td></tr>" +
       "<tr><td>Sanzioni ridotte a 1/3 dopo la contestazione</td><td class=\"n\">" + E(r.sanzioneUnTerzo) + "</td></tr>" +
-      "<tr><td>Sanzioni da ravvedimento valido</td><td class=\"n\">" + E(r.ravvedimentoValido.sanzioni) + "</td></tr></tbody></table>" + noteAnno(r);
-    return tabellaVoci(r) + noteAnno(r);
+      "<tr><td>Sanzioni da ravvedimento valido</td><td class=\"n\">" + E(r.ravvedimentoValido.sanzioni) + "</td></tr>" +
+      (r.tardiva ? "<tr><td>Dichiarazione presentata ora, oltre 90 giorni e prima dei controlli: 75% delle imposte più RW (art. 1 c. 1-bis D.Lgs. 471/1997)</td><td class=\"n\">" + E(r.tardiva.sanzione) + "</td></tr>" : "") + "</tbody></table>" + noteAnno(r);
+    return tabellaVoci(r) + confrontoMisure(r) + noteAnno(r);
+  }
+  /* dal 1/9/2024 (art. 1 D.Lgs. 471/1997): sanzione sulle imposte con il ravvedimento (integrativa, c. 2-bis) e se l'infedeltà è contestata (c. 2) */
+  function confrontoMisure(r) {
+    if (r.contestata == null) return "";
+    var rav = r.voci.filter(function (v) { return /IVACA|RT\)/.test(v.voce); }).reduce(function (a, v) { return a + (v.sanzione || 0); }, 0);
+    return '<table class="det" style="margin-top:10px"><thead><tr><th>Sanzione sulle imposte (IVACA e RT)</th><th class="n">Importo</th></tr></thead><tbody>' +
+      "<tr><td>Ravvedimento: integrativa prima di accessi, ispezioni o verifiche, 50% (art. 1 c. 2-bis D.Lgs. 471/1997) ridotto a " + esc(r.frazione ? r.frazione.testo : "") + '</td><td class="n">' + E(rav) + "</td></tr>" +
+      "<tr><td>Infedele dichiarazione contestata dall'Agenzia: 70%, minimo 150 € (art. 1 c. 2), senza riduzioni</td><td class=\"n\">" + E(r.contestata) + "</td></tr></tbody></table>";
   }
   function noteAnno(r) {
     return r.note.length ? '<ul class="avvisi" style="margin-top:6px">' + r.note.map(function (n) { return '<li class="' + (/non è tecnicamente possibile|contestata/.test(n) ? "hi" : "") + '">' + esc(n) + "</li>"; }).join("") + "</ul>" : "";
