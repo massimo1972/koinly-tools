@@ -5,8 +5,10 @@
    - acquisto con valuta tradizionale: strato al costo pagato, commissioni comprese;
    - permuta: la cripto ceduta esce al valore del momento (corrispettivo), quella ricevuta entra con quel valore;
    - interessi, reward, airdrop, cashback e altri proventi: strato al valore del giorno di ricezione;
-   - trasferimenti tra wallet propri: nessun effetto, salvo la commissione;
-   - commissioni pagate in cripto: scaricano strati LIFO; il loro valore si aggiunge al costo dell'acquisto o riduce il corrispettivo;
+   - commissioni: oneri accessori, sempre rilevanti. Si aggiungono al costo di ciò che si riceve; nelle vendite contro valuta
+     e contro stablecoin riducono il corrispettivo. Le commissioni in cripto scaricano strati LIFO della cripto usata:
+     fino al 2022 sono cessioni al valore del momento e l'onere è quel valore; dal 2023 non realizzano e l'onere è il costo scaricato;
+   - trasferimenti tra wallet propri: nessun effetto; il costo consumato dalla commissione resta nella pila della cripto trasferita;
    - depositi da wallet non collegati: strato al valore del giorno, da verificare; prelievi senza corrispettivo: scaricano strati.
    Ogni cessione scarica gli strati più recenti (LIFO) e ne riporta il costo. */
 (function (root, factory) {
@@ -68,6 +70,12 @@
     }
     if (resto > 0n) P.scoperto += resto;
     return { costo: costo, usati: usati, scoperto: resto };
+  }
+  /* onere accessorio: si aggiunge allo strato più recente (il primo a uscire); false se la pila è vuota */
+  function aggiungiCosto(P, importo) {
+    var s = P && P.strati[P.strati.length - 1];
+    if (!s) return false;
+    s.costo += importo; return true;
   }
   function fotografia(pile) {
     var out = {};
@@ -135,29 +143,45 @@
       var tag = etichetta(t.tag);
       // prestiti ricevuti, in cripto o in valuta (servono agli indizi sui prelievi successivi)
       if (/loan/.test(tag) && a && !da) prestiti.push({ ts: t.ts, chiave: a.valuta, q: D.decNum(a.q), valore: t.valore, wallet: t.walletA });
-      // trasferimento abbinato tra wallet propri: gli strati restano; la differenza (commissione) si scarica
+      // commissione implicita di un trasferimento (differenza tra inviato e ricevuto): la quantità esce, il suo costo resta nella pila
+      var trattieni = function (v, q) {
+        var P = get(v), s = scarica(P, q), resta = aggiungiCosto(P, s.costo);
+        if (!resta && s.costo) nota("onerePerso", "Commissioni senza strati a cui aggiungersi: onere non recuperato, da verificare");
+        registra({ tipo: "commissione (costo trattenuto)", chiave: v.valuta, simbolo: v.simbolo, q: q, corrispettivo: resta ? s.costo : 0, costo: s.costo, scoperto: s.scoperto, usati: s.usati });
+      };
+      // trasferimento abbinato tra wallet propri: gli strati restano, anche il costo della differenza (commissione)
       if (t.abbinata) {
-        if (t.trasfDiff > 0n && da) { var Pd = get(da); Pd.nMov++; var sd = scarica(Pd, t.trasfDiff); registra({ tipo: "commissione", chiave: da.valuta, simbolo: da.simbolo, q: t.trasfDiff, corrispettivo: 0, costo: sd.costo, scoperto: sd.scoperto, usati: sd.usati }); }
+        if (t.trasfDiff > 0n && da) { get(da).nMov++; trattieni(da, t.trasfDiff); }
         if (da) get(da).nMov++; if (a) get(a).nMov++;
         return;
       }
 
-      // commissione: in valuta tradizionale è un onere; in cripto scarica strati (il valore è quello indicato da Koinly)
-      var onere = 0;
+      /* commissione: onere accessorio. In valuta è il suo importo. In cripto scarica strati della cripto usata: fino al 2022
+         (permute al valore del momento) è una cessione al valore indicato da Koinly e l'onere è quel valore; dal 2023 non realizza
+         e l'onere è il costo scaricato. L'onere si aggiunge al costo di ciò che si riceve o riduce il corrispettivo della vendita;
+         senza l'una e l'altra resta nel costo della cripto trasferita o di quella usata per pagarla. */
+      var onere = 0, onereUsato = false;
+      var prendiOnere = function () { if (onereUsato) return 0; onereUsato = true; return onere; };
+      var collocaOnere = function (P) {
+        if (onereUsato || !onere || !P) return;
+        onereUsato = true;
+        if (!aggiungiCosto(P, onere)) nota("onerePerso", "Commissioni senza strati a cui aggiungersi: onere non recuperato, da verificare");
+      };
       if (fee) {
         if (fiat(fee.simbolo)) onere = fee.simbolo === "EUR" ? -D.decNum(fee.q) : t.valoreFee;
         else {
           var Pf = get(fee); Pf.nMov++;
-          var sf = scarica(Pf, -fee.q);
-          onere = t.valoreFee || 0;
+          var sf = scarica(Pf, -fee.q), realizza = (!swapDal || g < swapDal) && t.valoreFee > 0;
           if (sf.scoperto > 0n) nota("scopertoFee", "Commissioni pagate con cripto senza strati di costo: storico incompleto");
-          registra({ tipo: "commissione", chiave: fee.valuta, simbolo: fee.simbolo, q: -fee.q, corrispettivo: onere, costo: sf.costo, scoperto: sf.scoperto, usati: sf.usati });
+          if ((!swapDal || g < swapDal) && !realizza) nota("feeSenzaValore", "Commissioni in cripto senza controvalore nel file Koinly: onere pari al costo scaricato, da verificare");
+          onere = realizza ? t.valoreFee : sf.costo;
+          registra({ tipo: realizza ? "cessione per commissione" : "commissione (costo come onere)", chiave: fee.valuta, simbolo: fee.simbolo, q: -fee.q, corrispettivo: onere, costo: sf.costo, scoperto: sf.scoperto, usati: sf.usati });
         }
       }
       // trasferimento tra wallet propri: stessa cripto in uscita e in entrata
       if (da && a && da.valuta === a.valuta) {
         var diff = -da.q - a.q; // eventuale differenza = commissione implicita
-        if (diff > 0n && !fiat(da.simbolo)) { var Pt = get(da); var st = scarica(Pt, diff); registra({ tipo: "commissione", chiave: da.valuta, simbolo: da.simbolo, q: diff, corrispettivo: 0, costo: st.costo, scoperto: st.scoperto, usati: st.usati }); }
+        if (!fiat(da.simbolo)) { if (diff > 0n) trattieni(da, diff); collocaOnere(get(da)); }
         return;
       }
       var daF = da && fiat(da.simbolo), aF = a && fiat(a.simbolo);
@@ -179,34 +203,38 @@
         var s = scarica(P, -da.q);
         if (s.scoperto > 0n) nota("scoperto", "Cessioni di quantità senza strati di costo (saldo negativo): storico incompleto, costo zero sulla parte scoperta");
         var tipo, corr;
-        if (a && aF) { tipo = "contro valuta"; corr = valoreOp - onere; }
+        var costoOut = s.costo;
+        if (a && aF) { tipo = "contro valuta"; corr = valoreOp - prendiOnere(); }
         else if (a && swap) { tipo = "swap " + (stable(da.simbolo) ? (stable(a.simbolo) ? "stablecoin / stablecoin" : "acquisto con stablecoin") : "tra cripto") + " (neutro, costo trasferito)"; corr = s.costo; costoTrasf = s.costo; }
-        else if (a) { tipo = stable(a.simbolo) ? (stable(da.simbolo) ? "stablecoin / stablecoin" : "contro stablecoin") : stable(da.simbolo) ? "acquisto con stablecoin" : "permuta tra cripto"; corr = valoreOp; }
-        else if (USCITE.test(tag)) { tipo = "uscita (" + tag.replace(/_/g, " ") + ")"; corr = 0; }
+        else if (a) { tipo = stable(a.simbolo) ? (stable(da.simbolo) ? "stablecoin / stablecoin" : "contro stablecoin") : stable(da.simbolo) ? "acquisto con stablecoin" : "permuta tra cripto"; corr = tipo === "contro stablecoin" ? valoreOp - prendiOnere() : valoreOp; }
+        else if (USCITE.test(tag)) { tipo = "uscita (" + tag.replace(/_/g, " ") + ")"; corr = 0; costoOut += prendiOnere(); }
         else {
           segnala("prelievo", da);
           if (corr0 && corr0.azione === "interno") {
-            // trasferimento a wallet proprio non collegato: gli strati restano da parte, nessuna cessione
+            // trasferimento a wallet proprio non collegato: gli strati restano da parte, nessuna cessione; la commissione va con loro
             s.usati.forEach(function (u) { P.parcheggio.push({ q: u.q, costo: u.costo, data: u.data, origine: u.origine }); });
+            if (P.parcheggio.length) P.parcheggio[P.parcheggio.length - 1].costo += prendiOnere();
             registra({ tipo: "trasferimento a wallet proprio", chiave: da.valuta, simbolo: da.simbolo, q: -da.q, corrispettivo: 0, costo: 0, scoperto: s.scoperto, usati: s.usati, parcheggiato: s.costo });
-            return finisciEntrata();
+            finisciEntrata(); return collocaOnere(fee && !fiat(fee.simbolo) ? get(fee) : P);
           }
-          if (corr0 && corr0.azione === "cessione") { tipo = "cessione a terzi"; corr = +corr0.importo || 0; }
-          else { tipo = "prelievo senza corrispettivo"; corr = 0; nota("prelievo", "Prelievi verso wallet non collegati a Koinly: il costo esce senza corrispettivo; verificare se sono trasferimenti a wallet propri"); }
+          if (corr0 && corr0.azione === "cessione") { tipo = "cessione a terzi"; corr = (+corr0.importo || 0) - prendiOnere(); }
+          else { tipo = "prelievo senza corrispettivo"; corr = 0; costoOut += prendiOnere(); nota("prelievo", "Prelievi verso wallet non collegati a Koinly: il costo esce senza corrispettivo; verificare se sono trasferimenti a wallet propri"); }
         }
-        registra({ tipo: tipo, chiave: da.valuta, simbolo: da.simbolo, q: -da.q, corrispettivo: corr, costo: s.costo, scoperto: s.scoperto, usati: s.usati, controparte: a ? a.simbolo : "" });
+        registra({ tipo: tipo, chiave: da.valuta, simbolo: da.simbolo, q: -da.q, corrispettivo: corr, costo: costoOut, scoperto: s.scoperto, usati: s.usati, controparte: a ? a.simbolo : "" });
       }
-      return finisciEntrata();
+      finisciEntrata();
+      // commissione rimasta senza acquisto né vendita: resta nel costo della cripto usata per pagarla
+      return collocaOnere(fee && !fiat(fee.simbolo) ? get(fee) : da && !daF ? get(da) : a && !aF ? get(a) : null);
       // entrata della cripto ricevuta: nuovo strato
       function finisciEntrata() {
       if (a && !aF) {
         var Pa = get(a); Pa.nMov++;
         var costo, origine;
-        if (da && daF) { costo = valoreOp + onere; origine = "acquisto con " + da.simbolo; }
-        else if (da && swap) { costo = costoTrasf + (fee && !fiat(fee.simbolo) ? 0 : onere); origine = "swap da " + da.simbolo + " (costo trasferito)"; }
-        else if (da) { costo = valoreOp + (fee && !fiat(fee.simbolo) ? 0 : onere); origine = "permuta da " + da.simbolo; }
-        else if (PROVENTI.test(tag)) { costo = valoreOp; origine = tag.replace(/_/g, " "); }
-        else if (/loan/i.test(tag)) { costo = valoreOp; origine = "prestito ricevuto"; nota("prestito", "Cripto ricevute in prestito: caricate al valore del giorno, da verificare"); }
+        if (da && daF) { costo = valoreOp + prendiOnere(); origine = "acquisto con " + da.simbolo; }
+        else if (da && swap) { costo = costoTrasf + prendiOnere(); origine = "swap da " + da.simbolo + " (costo trasferito)"; }
+        else if (da) { costo = valoreOp + prendiOnere(); origine = "permuta da " + da.simbolo; }
+        else if (PROVENTI.test(tag)) { costo = valoreOp + prendiOnere(); origine = tag.replace(/_/g, " "); }
+        else if (/loan/i.test(tag)) { costo = valoreOp + prendiOnere(); origine = "prestito ricevuto"; nota("prestito", "Cripto ricevute in prestito: caricate al valore del giorno, da verificare"); }
         else {
           segnala("deposito", a);
           if (corr0 && corr0.azione === "interno") {
@@ -218,12 +246,13 @@
               sp.q -= pr; sp.costo -= cp; resto -= pr; if (sp.q === 0n) Pa.parcheggio.pop();
             }
             if (resto > 0n) { var vr = valoreOp * D.decNum(resto) / D.decNum(a.q); carica(Pa, resto, vr, g, "rientro da wallet proprio senza strati da parte: valore del giorno", t.riga); rec += vr; nota("rientro", "Rientri da wallet proprio superiori ai prelievi messi da parte: la differenza è caricata al valore del giorno"); }
+            collocaOnere(Pa);
             registra({ tipo: "carico", chiave: a.valuta, simbolo: a.simbolo, q: a.q, costo: rec, origine: "rientro da wallet proprio" });
             return;
           }
-          if (corr0 && corr0.azione === "costo") { costo = +corr0.importo || 0; origine = "deposito con costo documentato"; }
+          if (corr0 && corr0.azione === "costo") { costo = (+corr0.importo || 0) + prendiOnere(); origine = "deposito con costo documentato"; }
           else if (corr0 && corr0.azione === "zero") { costo = 0; origine = "deposito a costo zero (prudenziale)"; }
-          else { costo = valoreOp; origine = "deposito"; nota("deposito", "Depositi da wallet non collegati a Koinly: caricati al valore del giorno, verificare il costo d'origine"); }
+          else { costo = valoreOp + prendiOnere(); origine = "deposito"; nota("deposito", "Depositi da wallet non collegati a Koinly: caricati al valore del giorno, verificare il costo d'origine"); }
         }
         carica(Pa, a.q, costo, g, origine, t.riga);
         registra({ tipo: "carico", chiave: a.valuta, simbolo: a.simbolo, q: a.q, costo: costo, origine: origine });
@@ -326,7 +355,7 @@
     var plusKoinly = somma(K, function (k) { return k.risultato; });
     var voci = [
       { voce: "Plusvalenza Koinly dell'anno (elenco cessioni del report)", importo: plusKoinly },
-      { voce: (anno >= 2023 ? "− operazioni che Koinly tassa ma che dal 2023 non rilevano (permute tra cripto, acquisti con stablecoin, commissioni, uscite)" : "− commissioni e uscite che Koinly tratta come cessioni"), importo: -somma(coppieNonRil, function (p) { return p.k.risultato; }), n: coppieNonRil.length },
+      { voce: (anno >= 2023 ? "− operazioni che Koinly tassa ma che dal 2023 non rilevano (permute tra cripto, acquisti con stablecoin, commissioni, uscite)" : "− uscite che Koinly tratta come cessioni"), importo: -somma(coppieNonRil, function (p) { return p.k.risultato; }), n: coppieNonRil.length },
       { voce: "+ differenze di corrispettivo sulle stesse cessioni", importo: somma(coppieRil, function (p) { return p.n.corrispettivo - p.k.ricavo; }), n: coppieRil.length },
       { voce: "− differenze di costo sulle stesse cessioni (LIFO globale dall'origine e correzioni)", importo: -somma(coppieRil, function (p) { return p.n.costo - p.k.costo; }), n: coppieRil.length },
       { voce: "− cessioni presenti solo in Koinly", importo: -somma(soloKoinly, function (k) { return k.risultato; }), n: soloKoinly.length },

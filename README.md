@@ -35,6 +35,7 @@ Uscite: tabella a video con i periodi; Excel (fogli «Righi RW» e «Riepilogo p
 - **Metodo:** una pila di strati per cripto, unica per tutti i wallet e tutti gli anni (LIFO globale).
 - **Criteri:**
   - acquisto: costo pagato con le commissioni;
+  - commissioni: oneri accessori in tutti gli anni, nel costo di ciò che si riceve o in riduzione del corrispettivo delle vendite contro valuta e contro stablecoin; quelle in cripto fino al 2022 sono cessioni al valore del momento, dal 2023 portano come onere il costo scaricato; le commissioni dei trasferimenti restano nel costo della cripto trasferita;
   - permuta: valore del momento;
   - interessi, reward e airdrop: valore del giorno;
   - trasferimenti tra wallet propri: nessun effetto, e quelli non abbinati da Koinly sono riconosciuti in automatico.

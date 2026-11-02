@@ -114,4 +114,39 @@ t("Indizi sui prelievi: invio di prova, uscita di cripto prese in prestito, dest
   // prestito in dollari subito cambiato in USDC e prelevato: riconosciuto dal controvalore in euro
   assert.ok(per(9).prestito);
 });
+t("Commissioni in cripto come oneri accessori: fino al 2022 cessione al valore, dal 2023 costo scaricato", () => {
+  const T = [H,
+    riga(1, "2021-01-10 10:00:00", "trade", "", "Exchange;x", "200.0", "EUR;11", "Exchange;x", "1.0", "BNB;4", "200.0"),
+    riga(2, "2021-02-01 10:00:00", "trade", "", "Exchange;x", "10000.0", "EUR;11", "Exchange;x", "1.0", "BTC;1", "10000.0"),
+    // 2022: vendita BTC contro euro con 0,1 BNB di commissione (valore 50, costo 20)
+    riga(3, "2022-06-01 10:00:00", "trade", "", "Exchange;x", "0.5", "BTC;1", "Exchange;x", "15000.0", "EUR;11", "15000.0", { fee: "0.1", feeV: "BNB;4", feeVal: "50.0" }),
+    // 2023: vendita BTC contro euro con 0,1 BNB (valore 60, costo 20): nessun realizzo, onere 20
+    riga(4, "2023-06-01 10:00:00", "trade", "", "Exchange;x", "0.25", "BTC;1", "Exchange;x", "7000.0", "EUR;11", "7000.0", { fee: "0.1", feeV: "BNB;4", feeVal: "60.0" }),
+    // 2023: swap BTC → ETH con 0,1 BNB (costo 20) che va nel costo trasferito
+    riga(5, "2023-07-01 10:00:00", "trade", "", "Exchange;x", "0.25", "BTC;1", "Exchange;x", "4.0", "ETH;3", "7000.0", { fee: "0.1", feeV: "BNB;4", feeVal: "60.0" })
+  ].join("\n");
+  const r22 = C.calcola(D.leggiTransazioni(T), { anno: 2022 }), r23 = C.calcola(D.leggiTransazioni(T), { anno: 2023 });
+  const f22 = ces(r22, "cessione per commissione")[0];
+  near(f22.corrispettivo, 50); near(f22.costo, 20); assert.ok(C.rilevante(f22.tipo, 2022));
+  near(ces(r22, "contro valuta")[0].corrispettivo, 15000 - 50);
+  near(r22.totali.tutte.corrispettivi, 15000 - 50 + 50); near(r22.totali.tutte.costi, 5000 + 20);
+  const v23 = ces(r23, "contro valuta")[0];
+  near(v23.corrispettivo, 7000 - 20); near(v23.costo, 2500);
+  const f23 = ces(r23, "commissione (costo come onere)");
+  assert.equal(f23.length, 2); f23.forEach((c) => { near(c.risultato, 0); assert.ok(!C.rilevante(c.tipo, 2023)); });
+  near(riga_(r23, "ETH").costoFine, 2500 + 20);
+});
+t("Commissioni dei trasferimenti: la quantità esce, il costo resta nella cripto trasferita", () => {
+  const T = [H,
+    riga(1, "2023-01-10 10:00:00", "trade", "", "Exchange;x", "20000.0", "EUR;11", "Exchange;x", "1.0", "BTC;1", "20000.0"),
+    riga(2, "2023-02-01 10:00:00", "withdrawal", "", "Exchange;x", "1.0", "BTC;1", "", "0.0", "", "25000.0"),
+    riga(3, "2023-02-01 11:00:00", "deposit", "", "", "0.0", "", "Ledger;l", "0.999", "BTC;1", "24975.0"),
+    riga(4, "2023-05-01 10:00:00", "trade", "", "Ledger;l", "0.999", "BTC;1", "Ledger;l", "30000.0", "EUR;11", "30000.0")
+  ].join("\n");
+  const r = C.calcola(D.leggiTransazioni(T), { anno: 2023 });
+  assert.equal(r.trasferimentiAbbinati, 1);
+  const fe = ces(r, "commissione (costo trattenuto)")[0];
+  assert.ok(fe); near(fe.risultato, 0); assert.ok(!C.rilevante(fe.tipo, 2023));
+  near(ces(r, "contro valuta")[0].costo, 20000);
+});
 console.log("\n" + n + " prove superate");
